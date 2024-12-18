@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+test.py
+
+# mac OS
+.DS_Store
+
+# IDE
+.idea/
+
+# Logs
+*.log
+*.zip
+
+# Audio files
+audio/
+
+# Env file
+.env
+
+# Playwright files
+.playwright/
