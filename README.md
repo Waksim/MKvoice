@@ -45,6 +45,7 @@ This Telegram bot receives text (from a user message, a file, or a URL), perform
    TELEGRAM_BOT_TOKEN=YOUR_TELEGRAM_BOT_TOKEN_HERE
    LOG_FILE=bot.log
    AUDIO_FOLDER=audio
+   ADMIN_ID=300202500  # telegram user id
    ```
    
 5. **Run the Bot:**:
