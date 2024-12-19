@@ -1,21 +1,23 @@
 # config.py
+
 import os
 from dotenv import load_dotenv
 
-# Загрузка переменных окружения из файла .env
+# Load environment variables from the .env file
 load_dotenv()
 
-# Базовая директория проекта
+# Determine the base directory of the project
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Токен Telegram бота
+# Telegram bot token retrieved from environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-# Конфигурация файла логов с абсолютным путем
+# Path to the log file, defaults to 'bot_log.log' if not specified
 LOG_FILE = os.path.join(BASE_DIR, os.getenv("LOG_FILE", "bot_log.log"))
 
-# Папка для хранения аудиофайлов
+# Directory to store audio files, defaults to 'audio' if not specified
 AUDIO_FOLDER = os.getenv("AUDIO_FOLDER", "audio")
 
-# ID администратора
+# Administrator ID, retrieved from environment variables and converted to integer
+# Defaults to 0 if not specified
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
