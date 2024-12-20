@@ -38,6 +38,8 @@ This Telegram bot receives text (from a user message, a file, or a URL), perform
 3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
+   playwright install chromium
+   playwright install-deps
    ```
    
 4. **Set up environment variables: Create a `.env` file in the project root**:
