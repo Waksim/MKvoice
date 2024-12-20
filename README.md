@@ -42,7 +42,7 @@ This Telegram bot receives text (from a user message, a file, or a URL), perform
 
    pip install --upgrade pip
    pip install -r requirements.txt
-   playwright install chromium
+   playwright install chromium  # firefox, webkit, <all>
    playwright install-deps
    ```
    
