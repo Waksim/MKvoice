@@ -37,6 +37,10 @@ This Telegram bot receives text (from a user message, a file, or a URL), perform
    
 3. **Install dependencies**:
    ```bash
+   sudo apt-get update
+   sudo apt-get install libxml2-dev libxslt-dev python3-dev build-essential  # Linux
+
+   pip install --upgrade pip
    pip install -r requirements.txt
    playwright install chromium
    playwright install-deps
@@ -47,6 +51,7 @@ This Telegram bot receives text (from a user message, a file, or a URL), perform
    TELEGRAM_BOT_TOKEN=7000000000:AAHHYqmzvlaRiZ0000HnFFpAsRgfo1GUooE
    LOG_FILE=bot.log
    AUDIO_FOLDER=audio
+   ADMIN_ID=300202500  # telegram user id
    ```
    
 5. **Run the Bot:**:
