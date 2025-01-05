@@ -145,23 +145,50 @@ async def handle_text(message: Message):
 @dp.message(F.document)
 async def handle_file(message: Message):
     """
-    Handler for uploaded text files.
-    Converts the file content to audio and sends it to the user.
+    Получает файл (docx, fb2, epub, txt).
+    Извлекаем текст -> синтезируем и отправляем сразу по частям.
     """
-    # Download the uploaded document
-    file = await bot.download(message.document)
+    file_extension = os.path.splitext(message.document.file_name)[1].lower()
+    local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
 
-    # Read and decode the file content as UTF-8 text
-    text = file.read().decode("utf-8")
+    try:
+        with open(local_file_path, "wb") as f:
+            download_stream = await bot.download(message.document)
+            f.write(download_stream.read())
 
-    # Convert the text to an audio file using text-to-speech
-    mp3_file = await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+        # Определение кодировки
+        with open(local_file_path, 'rb') as f:
+            raw_data = f.read()
+        detected = chardet.detect(raw_data)
+        encoding = detected['encoding']
+        confidence = detected['confidence']
+        logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
 
-    # Prepare the audio file for sending
-    audio = FSInputFile(mp3_file)
+        # Парсим:
+        if file_extension == ".docx":
+            text = parse_docx(local_file_path)
+        elif file_extension == ".fb2":
+            text = parse_fb2(local_file_path)
+        elif file_extension == ".epub":
+            text = parse_epub(local_file_path)
+        else:
+            if encoding is None:
+                encoding = 'utf-8'  # fallback
+            with open(local_file_path, "r", encoding=encoding, errors='replace') as f:
+                text = f.read()
 
-    # Send the audio file to the user
-    await message.reply_audio(audio=audio)
+        # Удаляем исходный файл
+        os.remove(local_file_path)
 
-    # Remove the audio file from the server after sending
-    os.remove(mp3_file)
+        if not text.strip():
+            await message.reply("Не удалось извлечь текст из документа.")
+            return
+
+        # Синтез и моментальная отправка частей
+        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+
+    except Exception as e:
+        logger.error(f"Не удалось обработать документ: {e}")
+        await message.reply(f"Не удалось обработать документ: {e}")
+        if os.path.exists(local_file_path):
+            os.remove(local_file_path)
