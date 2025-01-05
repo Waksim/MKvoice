@@ -2,7 +2,7 @@
 nltk==3.8.1
 rake-nltk==1.0.4
 lxml==4.9.3
-lxml-html-clean
+lxml-html-clean==0.4.1
 aiogram==3.15.0
 playwright==1.49.0
 loguru==0.7.0
@@ -13,7 +13,7 @@ python-dotenv==1.0.0
 
 # Дополнительные зависимости для обработки документов
 python-docx==0.8.11        # Для работы с DOCX файлами
-pyrtf-ng==0.6.4            # Для работы с RTF файлами
+pyrtf-ng==0.6.3            # Для работы с RTF файлами
 EbookLib==0.18.8           # Для работы с EPUB файлами
 # Для обработки FB2 файлов используем lxml, который уже включен выше
 
