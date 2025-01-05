@@ -1,4 +1,5 @@
 import os
+import chardet
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, FSInputFile
 from aiogram.filters import Command
