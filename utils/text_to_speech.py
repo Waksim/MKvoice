@@ -1,56 +1,75 @@
+# utils/text_to_speech.py
 import time
 import os
 import edge_tts
 from aiogram.types import Message, FSInputFile
-from .text_analysis import analyze_text
+from loguru import logger
 from config import AUDIO_FOLDER
+from .text_analysis import analyze_text
+
+CHUNK_SIZE = 4500  # Примерное кол-во символов на часть
+
+
+async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
+    """
+    Разбивает текст на части по chunk_size символов.
+    Возвращает список строк.
+    """
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += chunk_size
+    return chunks
+
+
+async def synthesize_chunk(text: str, mp3_path: str,
+                           voice: str = "ru-RU-DmitryNeural",
+                           rate: str = "+50%"):
+    """
+    Синтезирует отдельную часть текста и сохраняет её в mp3_path.
+    """
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
+    await communicate.save(mp3_path)
+
 
 async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message: Message, logger):
     """
-    Synthesize speech from the given text using Microsoft Edge TTS.
+    Синтезирует *большой* текст по частям и
+    сразу отправляет каждую часть пользователю (без возвращения списка).
 
-    Steps:
-    - Analyze the text and send the analysis to the user.
-    - Synthesize the text into an MP3 file.
-    - Measure processing time and send performance metrics.
-    - Return the path to the generated MP3 file.
+    1. Анализируем текст (text_analysis) -> шлём summary.
+    2. Разбиваем текст на части.
+    3. Каждую часть синтезируем, отправляем, удаляем.
     """
-    logger.info(f"@{message.from_user.username}: {text[:100]}...\n")
+    if not text.strip():
+        logger.warning("Пустой текст для синтеза.")
+        await message.reply("Не удалось озвучить: пустой текст.")
+        return
 
-    # Create a filename based on the first few words of the text
-    words = text.split()[:5]
-    filename = "_".join(words) or "output"
-    mp3_path = os.path.join(AUDIO_FOLDER, f"{filename}.mp3")
-
-    # Send text analysis to the user
+    logger.info(f"@{message.from_user.username}: {text[:100]}...")
     summary = await analyze_text(text)
     await message.reply(summary, parse_mode='HTML')
 
-    # Start the synthesis process
-    communicate = edge_tts.Communicate(text=text, voice="ru-RU-DmitryNeural", rate="+50%")
+    # Генерируем имя файла (упрощённо)
+    base_filename = f"{text[:25]}_{filename_prefix}"
 
-    start_time = time.time()
-    await communicate.save(mp3_path)
-    end_time = time.time()
+    parts = await chunk_text(text)
+    total_parts = len(parts)
 
-    # Calculate processing time and speed
-    processing_time = round(end_time - start_time, 2)
-    processing_minutes = int(processing_time // 60)
-    processing_seconds = int(processing_time % 60)
+    for i, chunked_text in enumerate(parts, start=1):
+        part_filename = f"{i}_of_{total_parts}_{base_filename}.mp3"
+        mp3_path = os.path.join(AUDIO_FOLDER, part_filename)
 
-    processing_time_str = ""
-    if processing_minutes > 0:
-        processing_time_str += f"{processing_minutes} min "
-    if processing_seconds > 0 or processing_minutes == 0:
-        processing_time_str += f"{processing_seconds} sec"
+        start_time = time.time()
+        await synthesize_chunk(chunked_text, mp3_path)
+        end_time = time.time()
 
-    characters_per_second = round(len(text) / processing_time, 2)
+        logger.info(f"Часть {i}/{total_parts} синтезирована за {round(end_time - start_time, 2)} сек.")
 
-    # Send performance metrics to the user
-    response = (
-        f"⏳ Processing time: {processing_time_str}\n"
-        f"⚡ Synthesis speed: {characters_per_second} chars/sec"
-    )
-    await message.reply(response, parse_mode='HTML')
+        audio_file = FSInputFile(mp3_path)
+        await message.reply_audio(audio=audio_file)
 
-    return mp3_path
+        os.remove(mp3_path)
