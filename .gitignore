@@ -21,3 +21,6 @@ audio/
 
 # Playwright files
 .playwright/
+
+# Virtual environment
+venv/
