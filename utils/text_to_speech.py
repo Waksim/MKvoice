@@ -7,7 +7,7 @@ from loguru import logger
 from config import AUDIO_FOLDER
 from .text_analysis import analyze_text
 
-CHUNK_SIZE = 4500  # Примерное кол-во символов на часть
+CHUNK_SIZE = 40000  # Примерное кол-во символов на часть
 
 
 async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
