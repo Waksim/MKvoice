@@ -49,7 +49,12 @@ async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message
         await message.reply("Не удалось озвучить: пустой текст.")
         return
 
-    logger.info(f"@{message.from_user.username}: {text[:100]}...")
+    if len(text) > 1000000:
+        logger.info(f"Слишком большой файл: {len(text)} символа\n\n")
+        await message.reply("Текст для озвучки слишком большой. Напишите @maksenro если хотите повысить лимиты!")
+        return
+
+    logger.info(f"@{message.from_user.username}, длина - {len(text)}: {text[:100]}...\n\n")
     summary = await analyze_text(text)
     await message.reply(summary, parse_mode='HTML')
 
@@ -67,7 +72,7 @@ async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message
         await synthesize_chunk(chunked_text, mp3_path)
         end_time = time.time()
 
-        logger.info(f"Часть {i}/{total_parts} синтезирована за {round(end_time - start_time, 2)} сек.")
+        logger.debug(f"Часть {i}/{total_parts} синтезирована за {round(end_time - start_time, 2)} сек.")
 
         audio_file = FSInputFile(mp3_path)
         await message.reply_audio(audio=audio_file)

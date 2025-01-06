@@ -1,8 +1,8 @@
 # bot.py
 import os
 import asyncio
-
 import chardet
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message, FSInputFile
 from aiogram.filters import Command
@@ -15,9 +15,18 @@ from utils.document_parsers import parse_docx, parse_fb2, parse_epub
 from collections import deque
 from pathlib import Path
 
+# Подключаем middleware
+from middlewares.rate_limit import RateLimitMiddleware
+from middlewares.concurrency_limit import ConcurrencyLimitMiddleware
+
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
+
+# Регистрируем middleware
+dp.message.middleware(RateLimitMiddleware(rate_limit=5.0))
+dp.message.middleware(ConcurrencyLimitMiddleware(max_concurrent_tasks=1))
+
 
 # Создаём папку для аудио, если её нет
 audio_path = Path(AUDIO_FOLDER)
@@ -116,6 +125,10 @@ async def handle_text(message: Message):
 
 @dp.message(F.document)
 async def handle_file(message: Message):
+    # пример лимита 20 МБ
+    if message.document.file_size > 20 * 1024 * 1024:
+        await message.reply("Файл слишком большой (максимум 20 МБ).")
+        return
     """
     Получает файл (docx, fb2, epub, txt).
     Извлекаем текст -> синтезируем и отправляем сразу по частям.
