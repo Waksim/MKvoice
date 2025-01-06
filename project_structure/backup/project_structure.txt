@@ -1,0 +1,27 @@
+MKvoice/
+    .DS_Store
+    config.py
+    requirements.txt
+    test.py
+    bot_log.log
+    README.md
+    bot.py
+    .gitignore
+    .env
+    main.py
+    bot.log
+    middlewares/
+        concurrency_limit.py
+        rate_limit.py
+    utils/
+        text_extraction.py
+        text_analysis.py
+        document_parsers.py
+        text_to_speech.py
+    audio/
+        .DS_Store
+    logs/
+    project_structure/
+        .DS_Store
+        paths.py
+        project_structure_creator.py

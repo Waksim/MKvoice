@@ -1,0 +1,1239 @@
+-- Схема базы данных отсутствует или не была экспортирована --
+
+---- FILE: config.py ----
+# config.py
+
+import os
+from dotenv import load_dotenv
+
+# Load environment variables from the .env file
+load_dotenv()
+
+# Determine the base directory of the project
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# Telegram bot token retrieved from environment variables
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+
+# Path to the log file, defaults to 'bot_log.log' if not specified
+LOG_FILE = os.path.join(BASE_DIR, os.getenv("LOG_FILE", "bot_log.log"))
+
+# Directory to store audio files, defaults to 'audio' if not specified
+AUDIO_FOLDER = os.getenv("AUDIO_FOLDER", "audio")
+
+# Administrator ID, retrieved from environment variables and converted to integer
+# Defaults to 0 if not specified
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+
+---- FILE: test.py ----
+import os
+import asyncio
+import subprocess
+import json
+import requests
+from aiogram import Bot, Dispatcher, types, F
+from aiogram.filters import Command
+
+# ------------ Ваши токены ------------
+TELEGRAM_TOKEN = '7288388195:AAF1J1u4eTplzAtawBTT8Q6-yJkWQL--KIQ'
+WIT_AI_TOKEN = 'KDWYRKLXO7KA7WUEEG3LLH5ECUVGKQE4'
+# -------------------------------------
+
+bot = Bot(token=TELEGRAM_TOKEN)
+dp = Dispatcher()
+
+# ============ Шаг 1. Конвертация OGG -> WAV через Docker + ffmpeg =============
+async def convert_to_wav(ogg_path: str, wav_path: str):
+    print(f"ogg_abs_path: {os.path.abspath(ogg_path)}")
+    print(f"wav_abs_path: {os.path.abspath(wav_path)}")
+
+    command = [
+        "docker", "run", "--rm",
+        "-v", f"{os.getcwd()}:/data",
+        "jrottenberg/ffmpeg:4.4-alpine",
+        "-y",
+        "-i", f"/data/{os.path.basename(ogg_path)}",
+        "-acodec", "pcm_s16le",
+        "-ar", "16000",
+        "-ac", "1",
+        "-f", "wav",
+        f"/data/{os.path.basename(wav_path)}"
+    ]
+
+    print("Running command:", " ".join(command))
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("STDOUT:", proc.stdout.decode())
+    print("STDERR:", proc.stderr.decode())
+
+    if proc.returncode != 0:
+        raise Exception(f"Ошибка конвертации в WAV: {proc.stderr.decode()}")
+
+# ============ Шаг 2. Разрезание большого WAV на куски по 20 секунд ============
+def split_wav(wav_path: str, chunk_seconds: int = 20) -> list[str]:
+    """
+    Разбивает voice.wav на файлы chunk_000.wav, chunk_001.wav, ...
+    без перекодирования (просто «нарезка»).
+    """
+
+    # Удаляем старые chunk_*.wav
+    for fname in os.listdir("."):
+        if fname.startswith("chunk_") and fname.endswith(".wav"):
+            os.remove(fname)
+
+    out_templ = "chunk_%03d.wav"
+
+    # Команда ffmpeg для сегментации
+    command = [
+        "docker", "run", "--rm",
+        "-v", f"{os.getcwd()}:/data",
+        "jrottenberg/ffmpeg:4.4-alpine",
+        "-i", f"/data/{os.path.basename(wav_path)}",
+        "-f", "segment",
+        "-segment_time", str(chunk_seconds),
+        "-c", "copy",
+        f"/data/{out_templ}"
+    ]
+    print("Split command:", " ".join(command))
+    proc = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    print("SPLIT STDOUT:", proc.stdout.decode())
+    print("SPLIT STDERR:", proc.stderr.decode())
+
+    if proc.returncode != 0:
+        raise Exception(f"Ошибка нарезки WAV: {proc.stderr.decode()}")
+
+    # Собираем имена файлов
+    chunks = []
+    for fname in sorted(os.listdir(".")):
+        if fname.startswith("chunk_") and fname.endswith(".wav"):
+            chunks.append(fname)
+    return chunks
+
+# ============ Вспомогательная функция парсинга «сырого» JSON-ответа ===========
+def parse_json_objects(raw_text: str) -> list[dict]:
+    """
+    Посимвольно вытаскивает все объекты { ... } из ответа Wit.ai.
+    Возвращает список словарей (parsed JSON).
+    Игнорирует битые куски, выводит ошибки в print.
+    """
+    depth = 0
+    current = ""
+    result = []
+
+    for c in raw_text:
+        if c == '{':
+            depth += 1
+            if depth == 1:
+                current = '{'
+            else:
+                current += '{'
+        elif c == '}':
+            if depth > 0:
+                depth -= 1
+            current += '}'
+            if depth == 0:
+                # закончили объект
+                try:
+                    data = json.loads(current)
+                    result.append(data)
+                except json.JSONDecodeError as e:
+                    print("[parse_json_objects] JSON decode error:", e)
+                current = ""
+        else:
+            if depth > 0:
+                current += c
+
+    return result
+
+# ============ Шаг 3a. Распознавание одного куска (до 20 секунд) ===============
+def recognize_chunk(chunk_path: str) -> str:
+    """
+    Отправляем chunk_XXX.wav на Wit.ai.
+    Собираем все гипотезы.
+    Берём ту, что ДЛИННЕЕ ВСЕХ (максимальное кол-во символов).
+    """
+    print(f" --- Отправляем кусок {chunk_path} в Wit.ai ---")
+    with open(chunk_path, 'rb') as f:
+        resp = requests.post(
+            'https://api.wit.ai/speech?v=20220622',
+            headers={
+                'Authorization': f'Bearer {WIT_AI_TOKEN}',
+                'Content-Type': 'audio/wav'
+            },
+            data=f
+        )
+
+    print(f"[{chunk_path}] Wit.ai status:", resp.status_code)
+    if resp.status_code != 200:
+        print(f"[{chunk_path}] Ошибка Wit.ai: {resp.status_code}, {resp.text}")
+        return ""
+
+    raw_response = resp.text
+    print(f"[{chunk_path}] RAW response:\n{raw_response}\n")
+
+    # Парсим все объекты
+    objects = parse_json_objects(raw_response)
+    print(f"[{chunk_path}] Кол-во JSON объектов:", len(objects))
+
+    # Ищем «самую длинную» строку text
+    best_text = ""
+    for obj in objects:
+        txt = obj.get("text", "")
+        if len(txt) > len(best_text):
+            best_text = txt
+
+    best_text = best_text.strip()
+    print(f"[{chunk_path}] Лучшая гипотеза: '{best_text}'\n")
+
+    return best_text
+
+# ============ Шаг 3b. «Умная» склейка результатов, чтобы убрать повторы ========
+def smart_concat(full_text: str, new_part: str) -> str:
+    """
+    На стыке кусков убираем повтор.
+    Если конец full_text частично дублирует начало new_part —
+    подрезаем new_part, чтобы не плодить "проблема? проблема?".
+    """
+    full_text = full_text.strip()
+    new_part = new_part.strip()
+
+    if not new_part:
+        return full_text
+    if not full_text:
+        return new_part
+
+    max_overlap = min(len(full_text), len(new_part))
+    overlap_size = 0
+
+    # Пытаемся найти максимально возможное пересечение (full_text[-i:] == new_part[:i])
+    for i in range(max_overlap, 0, -1):
+        if full_text.endswith(new_part[:i]):
+            overlap_size = i
+            break
+
+    tail = new_part[overlap_size:].strip()
+    if tail:
+        if not full_text.endswith(" "):
+            full_text += " "
+        full_text += tail
+    return full_text
+
+# ============ Шаг 3 (общий). Распознаём весь WAV, склеиваем куски =============
+async def recognize_speech(big_wav_path: str) -> str:
+    # Разбиваем на короткие сегменты
+    chunks = split_wav(big_wav_path, chunk_seconds=20)
+    print("Найдено кусков:", len(chunks))
+
+    final_text = ""
+    for idx, ch in enumerate(chunks, start=1):
+        print(f"Распознаём кусок {idx}/{len(chunks)}: {ch}")
+        chunk_text = recognize_chunk(ch)
+        # Склеиваем
+        final_text = smart_concat(final_text, chunk_text)
+
+    if not final_text.strip():
+        return "Речь не распознана."
+    return final_text
+
+
+# ===================== Хэндлеры телеграм-бота =====================
+@dp.message(Command('start'))
+async def cmd_start(message: types.Message):
+    await message.answer("Отправь мне длинное голосовое, а я попытаюсь распознать его максимально полно.")
+
+
+@dp.message(F.voice)
+async def handle_voice(message: types.Message):
+    ogg_path = "voice.ogg"
+    wav_path = "voice.wav"
+    try:
+        file_info = await bot.get_file(message.voice.file_id)
+        await bot.download_file(file_info.file_path, ogg_path)
+
+        # 1) OGG -> WAV
+        await convert_to_wav(ogg_path, wav_path)
+        # 2) Распознаём всё (с разбиением)
+        text = await recognize_speech(wav_path)
+
+        await message.reply(text)
+
+    except Exception as e:
+        await message.reply(f"Произошла ошибка: {str(e).splitlines()[0]}")
+    finally:
+        # Очистка
+        if os.path.exists(ogg_path):
+            os.remove(ogg_path)
+        if os.path.exists(wav_path):
+            os.remove(wav_path)
+        for fname in os.listdir("."):
+            if fname.startswith("chunk_") and fname.endswith(".wav"):
+                os.remove(fname)
+
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == '__main__':
+    asyncio.run(main())
+
+
+---- FILE: bot.py ----
+# bot.py
+import os
+import asyncio
+import chardet
+
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Message, FSInputFile
+from aiogram.filters import Command
+from aiogram.fsm.storage.memory import MemoryStorage
+from loguru import logger
+from config import TOKEN, AUDIO_FOLDER, LOG_FILE, ADMIN_ID
+from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
+from utils.text_to_speech import synthesize_text_to_audio_edge
+from utils.document_parsers import parse_docx, parse_fb2, parse_epub
+from collections import deque
+from pathlib import Path
+
+# Подключаем middleware
+from middlewares.rate_limit import RateLimitMiddleware
+from middlewares.concurrency_limit import ConcurrencyLimitMiddleware
+
+bot = Bot(token=TOKEN)
+storage = MemoryStorage()
+dp = Dispatcher(storage=storage)
+
+# Регистрируем middleware
+dp.message.middleware(RateLimitMiddleware(rate_limit=5.0))
+dp.message.middleware(ConcurrencyLimitMiddleware(max_concurrent_tasks=1))
+
+
+# Создаём папку для аудио, если её нет
+audio_path = Path(AUDIO_FOLDER)
+audio_path.mkdir(parents=True, exist_ok=True)
+
+logger.add(LOG_FILE, rotation="1 MB", retention="10 days", compression="zip")
+
+MAX_MESSAGE_LENGTH = 4000
+
+
+@dp.message(Command(commands=["s", "S", "ы", "Ы"]))
+async def cmd_s(message: Message):
+    """
+    Команда /s, /S, /ы, /Ы — только для ADMIN_ID.
+    Отправляет последние 15 строк лог-файла сообщениями.
+    """
+    if message.from_user.id != ADMIN_ID:
+        logger.warning(f"Доступ запрещён для пользователя {message.from_user.id}")
+        await message.reply("Access denied.")
+        return
+
+    try:
+        log_file = Path(LOG_FILE)
+        if not log_file.exists():
+            logger.error(f"Лог-файл {LOG_FILE} не существует.")
+            await message.reply("Log file does not exist.")
+            return
+
+        # Чтение последних 15 строк
+        with log_file.open('r', encoding='utf-8') as f:
+            last_n_lines = deque(f, 15)
+        last_lines = ''.join(last_n_lines)
+
+        if not last_lines.strip():
+            await message.reply("No log messages.")
+            return
+
+        # Разделение на части <= MAX_MESSAGE_LENGTH
+        messages = []
+        current_message = ""
+        for line in last_lines.splitlines(keepends=True):
+            if len(current_message) + len(line) > MAX_MESSAGE_LENGTH:
+                messages.append(current_message)
+                current_message = line
+            else:
+                current_message += line
+        if current_message:
+            messages.append(current_message)
+
+        for msg in messages:
+            await message.reply(f"📝 Last log lines:\n{msg}", parse_mode='HTML')
+            await asyncio.sleep(0.1)
+
+    except Exception as e:
+        logger.error(f"Failed to read log file: {e}")
+        await message.reply(f"Failed to read log file: {e}")
+
+
+@dp.message(F.text.regexp(r'^https?://'))
+async def handle_url(message: Message):
+    """
+    Пример обработки URL.
+    """
+    url = message.text
+    try:
+        text_page = await extract_text_from_url_static(url)
+        if len(text_page) < 200:
+            text_page = await extract_text_from_url_dynamic(url)
+        if not text_page.strip():
+            await message.reply("Не удалось извлечь текст.")
+            return
+
+        await synthesize_text_to_audio_edge(
+            text_page,
+            str(message.from_user.id),
+            message,
+            logger
+        )
+
+    except Exception as e:
+        await message.reply(f"Failed to process URL: {e}")
+
+
+@dp.message(F.text)
+async def handle_text(message: Message):
+    """
+    Обычный текст -> синтезируем
+    """
+    text = message.text
+    if not text.strip():
+        await message.reply("Пустой текст.")
+        return
+
+    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+
+
+@dp.message(F.document)
+async def handle_file(message: Message):
+    # пример лимита 20 МБ
+    if message.document.file_size > 20 * 1024 * 1024:
+        await message.reply("Файл слишком большой (максимум 20 МБ).")
+        return
+    """
+    Получает файл (docx, fb2, epub, txt).
+    Извлекаем текст -> синтезируем и отправляем сразу по частям.
+    """
+    file_extension = os.path.splitext(message.document.file_name)[1].lower()
+    local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
+
+    try:
+        with open(local_file_path, "wb") as f:
+            download_stream = await bot.download(message.document)
+            f.write(download_stream.read())
+
+        # Определение кодировки
+        with open(local_file_path, 'rb') as f:
+            raw_data = f.read()
+        detected = chardet.detect(raw_data)
+        encoding = detected['encoding']
+        confidence = detected['confidence']
+        logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
+
+        # Парсим:
+        if file_extension == ".docx":
+            text = parse_docx(local_file_path)
+        elif file_extension == ".fb2":
+            text = parse_fb2(local_file_path)
+        elif file_extension == ".epub":
+            text = parse_epub(local_file_path)
+        else:
+            if encoding is None:
+                encoding = 'utf-8'  # fallback
+            with open(local_file_path, "r", encoding=encoding, errors='replace') as f:
+                text = f.read()
+
+        # Удаляем исходный файл
+        os.remove(local_file_path)
+
+        if not text.strip():
+            await message.reply("Не удалось извлечь текст из документа.")
+            return
+
+        # Синтез и моментальная отправка частей
+        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+
+    except Exception as e:
+        logger.error(f"Не удалось обработать документ: {e}")
+        await message.reply(f"Не удалось обработать документ: {e}")
+        if os.path.exists(local_file_path):
+            os.remove(local_file_path)
+
+
+---- FILE: main.py ----
+import asyncio
+from bot import dp, bot
+
+async def main():
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
+
+---- FILE: middlewares/concurrency_limit.py ----
+# middlewares/concurrency_limit.py
+import asyncio
+from aiogram import types
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from typing import Callable, Dict, Any, Awaitable
+
+class ConcurrencyLimitMiddleware(BaseMiddleware):
+    """
+    Ограничение на одновременные "долгие" задачи (например, парсинг+синтез).
+    - max_concurrent_tasks: максимум параллельных задач на пользователя.
+    - semaphores: dict[user_id -> asyncio.Semaphore]
+    """
+    def __init__(self, max_concurrent_tasks: int = 1):
+        super().__init__()
+        self.max_concurrent_tasks = max_concurrent_tasks
+        self.semaphores = {}
+
+    def get_semaphore_for_user(self, user_id: int) -> asyncio.Semaphore:
+        """
+        Создаёт (при необходимости) и возвращает семафор для пользователя.
+        """
+        if user_id not in self.semaphores:
+            self.semaphores[user_id] = asyncio.Semaphore(self.max_concurrent_tasks)
+        return self.semaphores[user_id]
+
+    async def __call__(
+        self,
+        handler: Callable[[types.TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: types.TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        if isinstance(event, types.Message):
+            user_id = event.from_user.id
+            semaphore = self.get_semaphore_for_user(user_id)
+
+            # Пытаемся занять "слот"
+            if semaphore.locked():
+                # Уже все слоты заняты => откажем
+                await event.answer(
+                    "У вас уже есть активная задача. Дождитесь завершения предыдущей."
+                )
+                return
+
+            # otherwise, оборачиваем обработку в контекст
+            async with semaphore:
+                # Пока в контексте, слот занят; выходим из контекста — слот освободился
+                return await handler(event, data)
+
+        return await handler(event, data)
+
+
+---- FILE: middlewares/rate_limit.py ----
+# middlewares/rate_limit.py
+import time
+from aiogram import types
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
+from typing import Callable, Dict, Any, Awaitable
+
+class RateLimitMiddleware(BaseMiddleware):
+    """
+    Простое ограничение частоты запросов:
+    - Не более 1 сообщения от пользователя за 'rate_limit' секунд.
+    """
+    def __init__(self, rate_limit: float = 5.0):
+        super().__init__()
+        self.rate_limit = rate_limit
+        # user_id -> timestamp последнего принятого сообщения
+        self.users_last_time = {}
+
+    async def __call__(
+        self,
+        handler: Callable[[types.TelegramObject, Dict[str, Any]], Awaitable[Any]],
+        event: types.TelegramObject,
+        data: Dict[str, Any]
+    ) -> Any:
+        if isinstance(event, types.Message):
+            user_id = event.from_user.id
+            current_time = time.time()
+            last_time = self.users_last_time.get(user_id, 0)
+
+            if (current_time - last_time) < self.rate_limit:
+                # Слишком частые сообщения от этого пользователя
+                await event.answer(
+                    f"Слишком много запросов, попробуйте чуть позже (лимит: {self.rate_limit} c)."
+                )
+                return  # Блокируем дальнейшую обработку
+
+            # Обновляем время последней успешной обработки
+            self.users_last_time[user_id] = current_time
+
+        return await handler(event, data)
+
+
+---- FILE: utils/text_extraction.py ----
+import asyncio
+from newspaper import Article
+from playwright.async_api import async_playwright
+
+async def extract_text_from_url_static(url: str) -> str:
+    """
+    Attempt to extract text from a URL using the Newspaper library.
+    This works best for static pages without heavy JavaScript.
+    """
+    article = Article(url)
+    article.download()
+    article.parse()
+    return article.text.strip()
+
+async def extract_text_from_url_dynamic(url: str) -> str:
+    """
+    Use Playwright to extract text from dynamically generated webpages.
+    If static extraction fails or returns too little content,
+    we fallback to dynamic extraction.
+    """
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        try:
+            await page.goto(url, timeout=60000)
+
+            # Try a set of known selectors that often contain main content
+            special_selectors = [".ReadTextContainerIn"]
+            selectors = special_selectors + ["article", ".content", ".main-content"]
+            article_text = None
+
+            for selector in selectors:
+                try:
+                    if await page.locator(selector).count() > 0:
+                        await page.wait_for_selector(selector, timeout=5000)
+                        texts = await page.locator(selector).all_inner_texts()
+                        article_text = "\n\n".join(texts).strip()
+                        if article_text:
+                            break
+                except Exception:
+                    continue
+
+            # If no suitable selector is found, fallback to body text extraction
+            if not article_text or article_text.strip() == "":
+                article_text = await page.evaluate("document.body.innerText")
+
+            return article_text.strip()
+        except Exception:
+            return ""
+        finally:
+            await browser.close()
+
+
+---- FILE: utils/text_analysis.py ----
+import re
+from collections import Counter
+import textstat
+import nltk
+from rake_nltk import Rake
+
+# Download required NLTK data silently if not present
+nltk.download('stopwords', quiet=True)
+nltk.download('punkt', quiet=True)
+
+# Set of stopwords to be filtered out from the frequency count
+STOP_WORDS = set(nltk.corpus.stopwords.words('russian')).union({
+    "в", "на", "к", "по", "с", "для", "и", "или", "от", "из", "за", "о", "об",
+    "что", "не", "это", "но", "так", "же", "как", "когда", "если", "где", "кто",
+    "можно", "только", "будет", "при", "из-за", "потому", "тогда", "во", "бы",
+    "там", "сразу", "пока", "ли", "чтобы", "сейчас", "ещё", "между", "даже",
+    "может", "после", "перед", "при", "тут", "да"
+})
+
+async def analyze_text(text: str) -> str:
+    """
+    Analyze the given text by:
+    - Counting words and characters
+    - Estimating reading time
+    - Finding top-5 most common words (excluding stopwords)
+    - Calculating reading difficulty via Flesch Reading Ease
+    - Determining education level required
+    - Extracting top key phrases via RAKE
+
+    Returns a formatted summary string.
+    """
+    word_count = len(text.split())
+    char_count = len(text)
+    estimated_time_seconds = round(len(text) / 150)
+    estimated_time_minutes = estimated_time_seconds // 60
+    estimated_time_remainder_seconds = estimated_time_seconds % 60
+
+    estimated_time_str = ""
+    if estimated_time_minutes > 0:
+        estimated_time_str += f"{estimated_time_minutes} min "
+    if estimated_time_remainder_seconds > 0 or estimated_time_minutes == 0:
+        estimated_time_str += f"{estimated_time_remainder_seconds} sec"
+
+    # Find top words excluding stopwords
+    words = re.findall(r'\b\w+\b', text.lower())
+    filtered_words = [word for word in words if word not in STOP_WORDS]
+    common_words = Counter(filtered_words).most_common(5)
+
+    # Reading difficulty and grade level
+    reading_ease = textstat.flesch_reading_ease(text)
+    grade_level = textstat.text_standard(text, float_output=False)
+
+    # Interpret reading ease
+    if reading_ease > 80:
+        reading_level = "Very easy to read"
+    elif reading_ease > 60:
+        reading_level = "Easy to read"
+    elif reading_ease > 40:
+        reading_level = "Moderately difficult"
+    elif reading_ease > 20:
+        reading_level = "Hard to read"
+    else:
+        reading_level = "Very hard to read"
+
+    # Key phrases extraction using RAKE
+    rake = Rake()
+    rake.extract_keywords_from_text(text)
+    key_phrases = rake.get_ranked_phrases()[:5]
+
+    # Compile the summary
+    summary_of_the_text = (
+        f"📝 Your text contains {word_count} words and {char_count} characters.\n"
+        f"⏳ Approximate narration time: {estimated_time_str}.\n\n"
+        f"📊 <b>Text Analysis</b>:\n\n"
+        f"- <b>Top-5 words</b>: {', '.join([f'{w} ({c})' for w, c in common_words])}\n"
+        f"- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
+        f"- <b>Suggested education level</b>: {grade_level}\n\n"
+        f"- <b>Key phrases</b>: {', '.join(key_phrases)}\n"
+    )
+
+    return summary_of_the_text
+
+
+---- FILE: utils/document_parsers.py ----
+# utils/document_parsers.py
+from xml.etree import ElementTree
+from docx import Document
+from ebooklib import epub, ITEM_DOCUMENT
+from bs4 import BeautifulSoup
+import warnings
+from loguru import logger
+
+# Новая зависимость
+
+def parse_docx(file_path: str) -> str:
+    """
+    Парсинг .docx-файла в текст.
+    ...
+    """
+    try:
+        doc = Document(file_path)
+        full_text = []
+        for para in doc.paragraphs:
+            paragraph_text = para.text.strip()
+            if paragraph_text:
+                full_text.append(paragraph_text)
+        extracted_text = "\n".join(full_text)
+        words_count = len(extracted_text.split())
+        logger.info(f"[DOCX] Извлечено {words_count} слов из файла {file_path}")
+        return extracted_text
+    except Exception as e:
+        logger.error(f"Ошибка при парсинге DOCX файла {file_path}: {e}")
+        return ""
+
+def parse_fb2(file_path: str) -> str:
+    """
+    Парсинг .fb2-файла в текст.
+    ...
+    """
+    try:
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        data_str = data.decode('utf-8', errors='replace')
+        root = ElementTree.fromstring(data_str)
+        ns = root.tag.split('}')[0].strip('{')
+        namespaces = {'fb2': ns}
+
+        sections = root.findall('.//fb2:section', namespaces=namespaces)
+        text_chunks = []
+        for sec in sections:
+            paragraphs = sec.findall('.//fb2:p', namespaces=namespaces)
+            sec_text = "\n".join([p.text.strip() for p in paragraphs if p.text])
+            if sec_text.strip():
+                text_chunks.append(sec_text)
+        extracted_text = "\n\n".join(text_chunks).strip()
+        words_count = len(extracted_text.split())
+        logger.info(f"[FB2] Извлечено {words_count} слов из файла {file_path}")
+        return extracted_text
+    except Exception as e:
+        logger.error(f"Ошибка при парсинге FB2 файла {file_path}: {e}")
+        return ""
+
+def parse_epub(file_path: str) -> str:
+    """
+    Парсинг .epub-файла в текст.
+    ...
+    """
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", UserWarning)
+            book = epub.read_epub(file_path)
+        items = list(book.get_items_of_type(ITEM_DOCUMENT))
+        logger.info(f"Количество документов в EPUB: {len(items)}")
+        full_text = []
+
+        for idx, item in enumerate(items, start=1):
+            if item.get_type() == ITEM_DOCUMENT:
+                content = item.get_content().decode('utf-8', errors='ignore')
+                soup = BeautifulSoup(content, 'html.parser')
+                for bad_tag in soup(["script", "style", "nav", "header", "footer", "meta", "link"]):
+                    bad_tag.extract()
+                paragraphs = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'])
+                text_only = "\n".join(
+                    para.get_text(separator=' ', strip=True) for para in paragraphs
+                ).strip()
+
+                logger.debug(f"[EPUB] Часть {idx}: извлечено {len(text_only.split())} слов.")
+                if text_only:
+                    full_text.append(text_only)
+
+        extracted_text = "\n".join(full_text)
+        total_words = len(extracted_text.split())
+        logger.info(f"[EPUB] Общее количество извлечённых слов: {total_words}")
+        return extracted_text
+    except Exception as e:
+        logger.error(f"Ошибка при парсинге EPUB файла {file_path}: {e}")
+        return ""
+
+---- FILE: utils/text_to_speech.py ----
+# utils/text_to_speech.py
+import time
+import os
+import edge_tts
+from aiogram.types import Message, FSInputFile
+from loguru import logger
+from config import AUDIO_FOLDER
+from .text_analysis import analyze_text
+
+CHUNK_SIZE = 4500  # Примерное кол-во символов на часть
+
+
+async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
+    """
+    Разбивает текст на части по chunk_size символов.
+    Возвращает список строк.
+    """
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = start + chunk_size
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += chunk_size
+    return chunks
+
+
+async def synthesize_chunk(text: str, mp3_path: str,
+                           voice: str = "ru-RU-DmitryNeural",
+                           rate: str = "+50%"):
+    """
+    Синтезирует отдельную часть текста и сохраняет её в mp3_path.
+    """
+    communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
+    await communicate.save(mp3_path)
+
+
+async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message: Message, logger):
+    """
+    Синтезирует *большой* текст по частям и
+    сразу отправляет каждую часть пользователю (без возвращения списка).
+
+    1. Анализируем текст (text_analysis) -> шлём summary.
+    2. Разбиваем текст на части.
+    3. Каждую часть синтезируем, отправляем, удаляем.
+    """
+    if not text.strip():
+        logger.warning("Пустой текст для синтеза.")
+        await message.reply("Не удалось озвучить: пустой текст.")
+        return
+
+    if len(text) > 1000000:
+        logger.info(f"Слишком большой файл: {len(text)} символа\n\n")
+        await message.reply("Текст для озвучки слишком большой. Напишите @maksenro если хотите повысить лимиты!")
+        return
+
+    logger.info(f"@{message.from_user.username}, длина - {len(text)}: {text[:100]}...\n\n")
+    summary = await analyze_text(text)
+    await message.reply(summary, parse_mode='HTML')
+
+    # Генерируем имя файла (упрощённо)
+    base_filename = f"{text[:25]}_{filename_prefix}"
+
+    parts = await chunk_text(text)
+    total_parts = len(parts)
+
+    for i, chunked_text in enumerate(parts, start=1):
+        part_filename = f"{i}_of_{total_parts}_{base_filename}.mp3"
+        mp3_path = os.path.join(AUDIO_FOLDER, part_filename)
+
+        start_time = time.time()
+        await synthesize_chunk(chunked_text, mp3_path)
+        end_time = time.time()
+
+        logger.debug(f"Часть {i}/{total_parts} синтезирована за {round(end_time - start_time, 2)} сек.")
+
+        audio_file = FSInputFile(mp3_path)
+        await message.reply_audio(audio=audio_file)
+
+        os.remove(mp3_path)
+
+
+---- FILE: project_structure/paths.py ----
+from pathlib import Path
+
+# Корневая директория проекта (переходим на уровень выше от текущей директории)
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+DATABASE_PATH = PROJECT_ROOT / 'tcgCodes.sqlite'
+
+# Папка backup внутри project_structure
+STRUCTURE_DIR = PROJECT_ROOT / 'project_structure' / 'backup'
+STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)  # Создаём папку, если её нет
+
+# Пути к файлам
+STRUCTURE_FILE = STRUCTURE_DIR / 'project_structure.txt'
+IMAGES_STRUCTURE_FILE = STRUCTURE_DIR / 'images_structure.txt'
+ARCHIVE_FILE = STRUCTURE_DIR / 'project_archive.zip'
+DATABASE_SCHEMA_FILE = STRUCTURE_DIR / 'database_schema_telegram_messages.sql'
+DB_DESCRIPTION_FILE = STRUCTURE_DIR / 'db_description.txt'
+
+# Игнорируемые элементы
+IGNORE_DIRS = {
+    '.git', '.idea', '__pycache__', 'venv', 'env',
+    '.venv', '.env', 'node_modules', 'backup'  # Игнорируем директорию backup
+}
+IGNORE_FILES = {'.DS_Store', 'project_archive.zip'}
+IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.svg', '.webp'}
+IGNORE_EXT = {'.pyc', '.pyo', '.log', '.db', '.zip', '.tar', '.gz', '.bz2', '.7z', '.rar'}
+
+# Путь к файлу логов (опционально, если используется)
+LOG_DIR = PROJECT_ROOT / 'logs'
+LOG_DIR.mkdir(exist_ok=True)
+
+
+---- FILE: project_structure/project_structure_creator.py ----
+import zipfile
+import sqlite3
+import os
+from pathlib import Path
+
+# Исправленный импорт: убедитесь, что папка называется 'project_structure', а не 'project_stucture'
+from project_structure.paths import (
+    PROJECT_ROOT,
+    STRUCTURE_DIR,
+    STRUCTURE_FILE,
+    IMAGES_STRUCTURE_FILE,
+    ARCHIVE_FILE,
+    IGNORE_DIRS,
+    IGNORE_FILES,
+    IMAGE_EXTENSIONS,
+    IGNORE_EXT,
+    DATABASE_SCHEMA_FILE,
+    DB_DESCRIPTION_FILE,
+    DATABASE_PATH
+)
+
+
+def should_ignore(file_path: Path, relative_path: Path, ignore_dirs, ignore_files, ignore_ext) -> bool:
+    """
+    Проверяет, нужно ли пропускать файл/директорию при архивировании (и в других операциях).
+    """
+    # Проверка на директории
+    for ignore_dir in ignore_dirs:
+        ignore_dir_path = Path(ignore_dir)
+        if ignore_dir_path in relative_path.parents:
+            print(f"Игнорируется файл/папка {relative_path} из-за игнорируемой директории {ignore_dir}")
+            return True
+
+    # Игнорируем по имени целиком (например, .DS_Store, project_archive.zip и пр.)
+    if relative_path.name in ignore_files:
+        print(f"Игнорируется файл {relative_path} из-за игнорируемого имени")
+        return True
+
+    # Игнорируем по расширению
+    if relative_path.suffix.lower() in ignore_ext:
+        print(f"Игнорируется файл {relative_path} из-за игнорируемого расширения")
+        return True
+
+    return False
+
+
+def get_project_structure(root_dir: Path, output_file: Path, ignore_dirs):
+    """
+    Рекурсивно обходит структуру проекта и записывает дерево файлов в output_file.
+    """
+    with output_file.open('w', encoding='utf-8') as f:
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            current_dir = Path(dirpath)
+            try:
+                relative_dir = current_dir.relative_to(root_dir)
+            except ValueError:
+                continue
+
+            # Убираем из dirnames те, что содержатся в ignore_dirs (по имени),
+            # чтобы не заходить внутрь. Например, если 'backup' в ignore_dirs, не заходить в 'backup'
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in ignore_dirs
+            ]
+
+            # Вычисляем уровень вложенности для отступов
+            if relative_dir == Path('.'):
+                level = 0
+            else:
+                level = len(relative_dir.parts)
+            indent = '    ' * level
+            f.write(f"{indent}{current_dir.name}/\n")
+
+            subindent = '    ' * (level + 1)
+            for name in filenames:
+                f.write(f"{subindent}{name}\n")
+
+
+def get_images_structure(root_dir: Path, image_extensions, output_file: Path, ignore_dirs):
+    """
+    Рекурсивно обходит структуру проекта и записывает дерево изображений в output_file.
+    """
+    with output_file.open('w', encoding='utf-8') as f:
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            current_dir = Path(dirpath)
+            try:
+                relative_dir = current_dir.relative_to(root_dir)
+            except ValueError:
+                continue
+
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in ignore_dirs
+            ]
+
+            # Фильтруем только изображения
+            image_files = [
+                file for file in filenames
+                if (current_dir / file).suffix.lower() in image_extensions
+            ]
+            if image_files:
+                if relative_dir == Path('.'):
+                    level = 0
+                else:
+                    level = len(relative_dir.parts)
+                indent = '    ' * level
+                f.write(f"{indent}{current_dir.name}/\n")
+                subindent = '    ' * (level + 1)
+                for name in image_files:
+                    f.write(f"{subindent}{name}\n")
+
+
+def export_database_schema(db_path: Path, output_file: Path):
+    """
+    Экспортирует полную схему базы данных, включая таблицы, индексы, вьюхи и триггеры.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        with output_file.open('w', encoding='utf-8') as f:
+            # Экспортируем все объекты (таблицы, индексы, вьюхи, триггеры),
+            # исключая служебное, если нужно (например sqlite_sequence).
+            cursor.execute("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL;")
+            objects = cursor.fetchall()
+
+            for obj_type, obj_name, obj_sql in objects:
+                f.write(f"-- {obj_type.upper()}: {obj_name}\n")
+                f.write(f"{obj_sql};\n\n")
+
+            print(f"Схема базы данных экспортирована в '{output_file}'.")
+        conn.close()
+    except Exception as e:
+        print(f"Ошибка при экспорте схемы базы данных: {e}")
+
+
+def create_zip_archive(
+    root_dir: Path,
+    archive_path: Path,
+    ignore_dirs,
+    ignore_files,
+    ignore_ext,
+    extra_files_to_add=None
+):
+    """
+    Создаёт zip-архив всего проекта, игнорируя ненужные файлы/папки.
+    Также добавляет (в том же потоке) конкретные файлы (extra_files_to_add),
+    чтобы избежать дубликатов.
+    """
+    added_rel_paths = set()
+
+    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
+        # 1. Пробегаемся по всему проекту и добавляем всё, что не игнорируется
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            current_dir = Path(dirpath)
+            try:
+                relative_dir = current_dir.relative_to(root_dir)
+            except ValueError:
+                continue
+
+            # Фильтрация вложенных директорий
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in ignore_dirs
+            ]
+
+            for filename in filenames:
+                file_path = current_dir / filename
+                rel_path = file_path.relative_to(root_dir)
+
+                if should_ignore(file_path, rel_path, ignore_dirs, ignore_files, ignore_ext):
+                    continue
+
+                rel_path_str = str(rel_path).replace(os.sep, '/')
+                if rel_path_str not in added_rel_paths:
+                    zipf.write(file_path, arcname=rel_path_str)
+                    added_rel_paths.add(rel_path_str)
+                else:
+                    print(f"Файл '{rel_path}' уже добавлен в архив, пропускаем.")
+
+        # 2. Добавляем "специфические" файлы, если нужно
+        if extra_files_to_add:
+            for special_file in extra_files_to_add:
+                if not special_file.exists() or not special_file.is_file():
+                    print(f"Файл '{special_file}' не найден и не был добавлен в архив.")
+                    continue
+
+                # Относительный путь
+                try:
+                    arcname = special_file.relative_to(root_dir)
+                except ValueError:
+                    # Если файл вне root_dir
+                    arcname = special_file.name
+
+                arcname_str = str(arcname).replace(os.sep, '/')
+                if arcname_str not in added_rel_paths:
+                    zipf.write(special_file, arcname=arcname_str)
+                    added_rel_paths.add(arcname_str)
+                    print(f"Добавлен файл '{special_file}' в архив.")
+                else:
+                    print(f"Файл '{special_file}' уже есть в архиве, пропускаем.")
+    print(f"Архив '{archive_path}' успешно создан.")
+
+
+def create_all_codes_file(
+    root_dir: Path,
+    output_file: Path,
+    ignore_dirs,
+    ignore_files,
+    ignore_ext,
+    database_schema_file: Path = None
+):
+    """
+    Создаёт файл all_codes.txt, в котором:
+    1. Сначала (при наличии) пишется содержимое экспортированной схемы БД.
+    2. Затем содержимое всех неигнорируемых .py файлов в формате:
+       ---- FILE: <относительный путь> ----
+       <содержимое файла>
+    """
+    with output_file.open('w', encoding='utf-8') as out:
+        # 1. Добавляем схему БД (если есть и если она создана)
+        if database_schema_file and database_schema_file.exists():
+            db_schema_content = database_schema_file.read_text(encoding='utf-8', errors='replace')
+            out.write("====== DATABASE SCHEMA BEGIN ======\n\n")
+            out.write(db_schema_content)
+            out.write("\n====== DATABASE SCHEMA END ======\n\n\n")
+        else:
+            out.write("-- Схема базы данных отсутствует или не была экспортирована --\n\n")
+
+        # 2. Обходим все файлы проекта, игнорируя лишние, и добавляем только .py файлы
+        for dirpath, dirnames, filenames in os.walk(root_dir):
+            current_dir = Path(dirpath)
+            try:
+                relative_dir = current_dir.relative_to(root_dir)
+            except ValueError:
+                continue
+
+            dirnames[:] = [
+                d for d in dirnames
+                if d not in ignore_dirs
+            ]
+
+            for filename in filenames:
+                file_path = current_dir / filename
+                rel_path = file_path.relative_to(root_dir)
+
+                # Пропускаем файлы по тем же критериям игнорирования
+                if should_ignore(file_path, rel_path, ignore_dirs, ignore_files, ignore_ext):
+                    continue
+
+                # Добавляем только .py файлы
+                if file_path.suffix.lower() != '.py':
+                    continue
+
+                out.write(f"---- FILE: {rel_path} ----\n")
+                try:
+                    content = file_path.read_text(encoding='utf-8', errors='replace')
+                except Exception as e:
+                    content = f"Невозможно прочитать файл из-за ошибки: {e}\n"
+                out.write(content)
+                out.write("\n\n")
+
+
+if __name__ == '__main__':
+    # 1. Генерация структуры проекта
+    print("Генерация структуры проекта...")
+    get_project_structure(PROJECT_ROOT, STRUCTURE_FILE, IGNORE_DIRS)
+    print(f"Структура проекта сохранена в '{STRUCTURE_FILE}'.")
+
+    # 2. Генерация структуры изображений
+    print("Генерация структуры изображений проекта...")
+    get_images_structure(PROJECT_ROOT, IMAGE_EXTENSIONS, IMAGES_STRUCTURE_FILE, IGNORE_DIRS)
+    print(f"Структура изображений сохранена в '{IMAGES_STRUCTURE_FILE}'.")
+
+    # 3. Экспорт схемы базы данных
+    print("Экспорт схемы базы данных...")
+    if DATABASE_PATH.exists():
+        export_database_schema(DATABASE_PATH, DATABASE_SCHEMA_FILE)
+    else:
+        print(f"База данных не найдена по пути: {DATABASE_PATH}")
+
+    # 4. Создание списка «специфических» файлов, которые нужно гарантированно включить
+    specific_files = [
+        DATABASE_SCHEMA_FILE,   # schema
+        IMAGES_STRUCTURE_FILE,  # images_structure.txt
+        STRUCTURE_FILE,         # project_structure.txt
+        DB_DESCRIPTION_FILE     # db_description.txt
+    ]
+
+    # 5. Создание ZIP-архива всего проекта + добавление «специфических» файлов
+    print("Создание ZIP-архива проекта...")
+    create_zip_archive(
+        root_dir=PROJECT_ROOT,
+        archive_path=ARCHIVE_FILE,
+        ignore_dirs=IGNORE_DIRS,
+        ignore_files=IGNORE_FILES,
+        ignore_ext=IGNORE_EXT,
+        extra_files_to_add=specific_files
+    )
+
+    # 6. Создание файла all_codes.txt со всеми .py файлами (и схемой БД в начале)
+    print("Создание файла all_codes.txt со всеми .py файлами...")
+    ALL_CODES_FILE = STRUCTURE_DIR / 'all_codes.txt'
+    create_all_codes_file(
+        root_dir=PROJECT_ROOT,
+        output_file=ALL_CODES_FILE,
+        ignore_dirs=IGNORE_DIRS,
+        ignore_files=IGNORE_FILES,
+        ignore_ext=IGNORE_EXT,
+        database_schema_file=DATABASE_SCHEMA_FILE
+    )
+    print(f"Файл с кодами создан: {ALL_CODES_FILE}")
+
+    # 7. Финальные сообщения
+    print("\nПроцесс завершён успешно!")
+    print(f"Архив: {ARCHIVE_FILE}")
+    print(f"Файл структуры проекта: {STRUCTURE_FILE}")
+    print(f"Файл структуры изображений: {IMAGES_STRUCTURE_FILE}")
+    print(f"Схема базы данных: {DATABASE_SCHEMA_FILE}")
+    print(f"Описание базы данных: {DB_DESCRIPTION_FILE}")
+    print(f"Все коды: {ALL_CODES_FILE}")
+
+
