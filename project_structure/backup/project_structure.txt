@@ -2,15 +2,41 @@ MKvoice/
     .DS_Store
     config.py
     requirements.txt
+    Makefile
     test.py
     bot_log.log
     README.md
     bot.py
     .gitignore
     .env
+    MKvoiceDB.sqlite
     main.py
     bot.log
+    locales/
+        messages.pot
+        compile_translations.sh
+        ru/
+            LC_MESSAGES/
+                messages.po
+                messages.mo
+                messages.po~
+        zh/
+            LC_MESSAGES/
+                messages.po
+                messages.mo
+                messages.po~
+        uk/
+            LC_MESSAGES/
+                messages.po
+                messages.mo
+                messages.po~
+        en/
+            LC_MESSAGES/
+                messages.po
+                messages.mo
+                messages.po~
     middlewares/
+        i18n_middleware.py
         concurrency_limit.py
         rate_limit.py
     utils/
@@ -18,6 +44,7 @@ MKvoice/
         text_analysis.py
         document_parsers.py
         text_to_speech.py
+        i18n.py
     audio/
         .DS_Store
     logs/

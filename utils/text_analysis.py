@@ -17,7 +17,7 @@ STOP_WORDS = set(nltk.corpus.stopwords.words('russian')).union({
     "может", "после", "перед", "при", "тут", "да"
 })
 
-async def analyze_text(text: str) -> str:
+async def analyze_text(text: str, _: callable) -> str:
     """
     Analyze the given text by:
     - Counting words and characters
@@ -27,7 +27,7 @@ async def analyze_text(text: str) -> str:
     - Determining education level required
     - Extracting top key phrases via RAKE
 
-    Returns a formatted summary string.
+    Returns a formatted summary string in the user's language.
     """
     word_count = len(text.split())
     char_count = len(text)
@@ -37,9 +37,9 @@ async def analyze_text(text: str) -> str:
 
     estimated_time_str = ""
     if estimated_time_minutes > 0:
-        estimated_time_str += f"{estimated_time_minutes} min "
+        estimated_time_str += _("{minutes} min ").format(minutes=estimated_time_minutes)
     if estimated_time_remainder_seconds > 0 or estimated_time_minutes == 0:
-        estimated_time_str += f"{estimated_time_remainder_seconds} sec"
+        estimated_time_str += _("{seconds} sec").format(seconds=estimated_time_remainder_seconds)
 
     # Find top words excluding stopwords
     words = re.findall(r'\b\w+\b', text.lower())
@@ -52,15 +52,15 @@ async def analyze_text(text: str) -> str:
 
     # Interpret reading ease
     if reading_ease > 80:
-        reading_level = "Very easy to read"
+        reading_level = _("Very easy to read")
     elif reading_ease > 60:
-        reading_level = "Easy to read"
+        reading_level = _("Easy to read")
     elif reading_ease > 40:
-        reading_level = "Moderately difficult"
+        reading_level = _("Moderately difficult")
     elif reading_ease > 20:
-        reading_level = "Hard to read"
+        reading_level = _("Hard to read")
     else:
-        reading_level = "Very hard to read"
+        reading_level = _("Very hard to read")
 
     # Key phrases extraction using RAKE
     rake = Rake()
@@ -68,14 +68,23 @@ async def analyze_text(text: str) -> str:
     key_phrases = rake.get_ranked_phrases()[:5]
 
     # Compile the summary
-    summary_of_the_text = (
-        f"📝 Your text contains {word_count} words and {char_count} characters.\n"
-        f"⏳ Approximate narration time: {estimated_time_str}.\n\n"
-        f"📊 <b>Text Analysis</b>:\n\n"
-        f"- <b>Top-5 words</b>: {', '.join([f'{w} ({c})' for w, c in common_words])}\n"
-        f"- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
-        f"- <b>Suggested education level</b>: {grade_level}\n\n"
-        f"- <b>Key phrases</b>: {', '.join(key_phrases)}\n"
+    summary_of_the_text = _(
+        "📝 Your text contains {word_count} words and {char_count} characters.\n"
+        "⏳ Approximate narration time: {estimated_time_str}.\n\n"
+        "📊 <b>Text Analysis</b>:\n\n"
+        "- <b>Top-5 words</b>: {top_words}\n"
+        "- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
+        "- <b>Suggested education level</b>: {grade_level}\n\n"
+        "- <b>Key phrases</b>: {key_phrases}\n"
+    ).format(
+        word_count=word_count,
+        char_count=char_count,
+        estimated_time_str=estimated_time_str,
+        top_words=', '.join([_("{word} ({count})").format(word=w, count=c) for w, c in common_words]),
+        reading_level=reading_level,
+        reading_ease=reading_ease,
+        grade_level=grade_level,
+        key_phrases=', '.join(key_phrases)
     )
 
     return summary_of_the_text

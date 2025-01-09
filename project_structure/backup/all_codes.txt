@@ -1,4 +1,14 @@
--- Схема базы данных отсутствует или не была экспортирована --
+====== DATABASE SCHEMA BEGIN ======
+
+-- TABLE: user_lang
+CREATE TABLE user_lang (
+            user_id INTEGER PRIMARY KEY,
+            lang_code TEXT NOT NULL
+        );
+
+
+====== DATABASE SCHEMA END ======
+
 
 ---- FILE: config.py ----
 # config.py
@@ -278,7 +288,7 @@ if __name__ == '__main__':
 
 
 ---- FILE: bot.py ----
-# bot.py
+# ---- FILE: bot.py ----
 import os
 import asyncio
 import chardet
@@ -288,10 +298,17 @@ from aiogram.types import Message, FSInputFile
 from aiogram.filters import Command
 from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
+
 from config import TOKEN, AUDIO_FOLDER, LOG_FILE, ADMIN_ID
+
+# i18n
+from middlewares.i18n_middleware import I18nMiddleware
+
 from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
 from utils.text_to_speech import synthesize_text_to_audio_edge
 from utils.document_parsers import parse_docx, parse_fb2, parse_epub
+from utils.i18n import get_translator, get_user_lang, set_user_lang
+
 from collections import deque
 from pathlib import Path
 
@@ -303,12 +320,10 @@ bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-# Регистрируем middleware
 dp.message.middleware(RateLimitMiddleware(rate_limit=5.0))
 dp.message.middleware(ConcurrencyLimitMiddleware(max_concurrent_tasks=1))
+dp.message.middleware(I18nMiddleware())
 
-
-# Создаём папку для аудио, если её нет
 audio_path = Path(AUDIO_FOLDER)
 audio_path.mkdir(parents=True, exist_ok=True)
 
@@ -317,102 +332,117 @@ logger.add(LOG_FILE, rotation="1 MB", retention="10 days", compression="zip")
 MAX_MESSAGE_LENGTH = 4000
 
 
+@dp.message(Command('start'))
+async def cmd_start(message: Message, _):
+    user_id = message.from_user.id
+    lang_code = get_user_lang(user_id)
+    translator = get_translator(lang_code)
+    __ = translator.gettext  # Если нужно локально
+
+    await message.answer(_(
+        "Привет! Отправь мне текст или файл, а я озвучу."
+    ))
+
+
+@dp.message(Command('lang'))
+async def cmd_lang(message: Message, _):
+    parts = message.text.split()
+    if len(parts) < 2:
+        await message.reply(_("Usage: /lang <en|ru|uk|zh>"))
+        return
+
+    new_lang = parts[1].strip().lower()
+    if new_lang not in ['en', 'ru', 'uk', 'zh']:
+        await message.reply(_("Доступные языки: en, ru, uk, zh"))
+        return
+
+    set_user_lang(message.from_user.id, new_lang)
+
+    t = get_translator(new_lang)
+    await message.reply(t.gettext("Язык обновлён!"))
+
+
 @dp.message(Command(commands=["s", "S", "ы", "Ы"]))
-async def cmd_s(message: Message):
-    """
-    Команда /s, /S, /ы, /Ы — только для ADMIN_ID.
-    Отправляет последние 15 строк лог-файла сообщениями.
-    """
+async def cmd_s(message: Message, _):
     if message.from_user.id != ADMIN_ID:
         logger.warning(f"Доступ запрещён для пользователя {message.from_user.id}")
-        await message.reply("Access denied.")
+        await message.reply(_("Access denied."))
         return
 
     try:
         log_file = Path(LOG_FILE)
         if not log_file.exists():
             logger.error(f"Лог-файл {LOG_FILE} не существует.")
-            await message.reply("Log file does not exist.")
+            await message.reply(_("Log file does not exist."))
             return
 
-        # Чтение последних 15 строк
         with log_file.open('r', encoding='utf-8') as f:
             last_n_lines = deque(f, 15)
         last_lines = ''.join(last_n_lines)
 
         if not last_lines.strip():
-            await message.reply("No log messages.")
+            await message.reply(_("No log messages."))
             return
 
-        # Разделение на части <= MAX_MESSAGE_LENGTH
-        messages = []
+        messages_list = []
         current_message = ""
         for line in last_lines.splitlines(keepends=True):
             if len(current_message) + len(line) > MAX_MESSAGE_LENGTH:
-                messages.append(current_message)
+                messages_list.append(current_message)
                 current_message = line
             else:
                 current_message += line
         if current_message:
-            messages.append(current_message)
+            messages_list.append(current_message)
 
-        for msg in messages:
-            await message.reply(f"📝 Last log lines:\n{msg}", parse_mode='HTML')
+        for msg in messages_list:
+            await message.reply(_("📝 Last log lines:\n") + msg, parse_mode='HTML')
             await asyncio.sleep(0.1)
 
     except Exception as e:
         logger.error(f"Failed to read log file: {e}")
-        await message.reply(f"Failed to read log file: {e}")
+        await message.reply(_("Failed to read log file: {error}").format(error=str(e)))
 
 
 @dp.message(F.text.regexp(r'^https?://'))
-async def handle_url(message: Message):
-    """
-    Пример обработки URL.
-    """
+async def handle_url(message: Message, _):
     url = message.text
     try:
         text_page = await extract_text_from_url_static(url)
         if len(text_page) < 200:
             text_page = await extract_text_from_url_dynamic(url)
         if not text_page.strip():
-            await message.reply("Не удалось извлечь текст.")
+            await message.reply(_("Не удалось извлечь текст."))
             return
 
         await synthesize_text_to_audio_edge(
             text_page,
             str(message.from_user.id),
             message,
-            logger
+            logger,
+            _
         )
 
     except Exception as e:
-        await message.reply(f"Failed to process URL: {e}")
+        await message.reply(_("Failed to process URL: {error}").format(error=str(e)))
 
 
 @dp.message(F.text)
-async def handle_text(message: Message):
-    """
-    Обычный текст -> синтезируем
-    """
+async def handle_text(message: Message, _):
     text = message.text
     if not text.strip():
-        await message.reply("Пустой текст.")
+        await message.reply(_("Пустой текст."))
         return
 
-    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
 
 
 @dp.message(F.document)
-async def handle_file(message: Message):
-    # пример лимита 20 МБ
+async def handle_file(message: Message, _):
     if message.document.file_size > 20 * 1024 * 1024:
-        await message.reply("Файл слишком большой (максимум 20 МБ).")
+        await message.reply(_("Файл слишком большой (максимум 20 МБ)."))
         return
-    """
-    Получает файл (docx, fb2, epub, txt).
-    Извлекаем текст -> синтезируем и отправляем сразу по частям.
-    """
+
     file_extension = os.path.splitext(message.document.file_name)[1].lower()
     local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
 
@@ -421,7 +451,6 @@ async def handle_file(message: Message):
             download_stream = await bot.download(message.document)
             f.write(download_stream.read())
 
-        # Определение кодировки
         with open(local_file_path, 'rb') as f:
             raw_data = f.read()
         detected = chardet.detect(raw_data)
@@ -429,7 +458,6 @@ async def handle_file(message: Message):
         confidence = detected['confidence']
         logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
 
-        # Парсим:
         if file_extension == ".docx":
             text = parse_docx(local_file_path)
         elif file_extension == ".fb2":
@@ -438,36 +466,73 @@ async def handle_file(message: Message):
             text = parse_epub(local_file_path)
         else:
             if encoding is None:
-                encoding = 'utf-8'  # fallback
-            with open(local_file_path, "r", encoding=encoding, errors='replace') as f:
-                text = f.read()
+                encoding = 'utf-8'
+            with open(local_file_path, "r", encoding=encoding, errors='replace') as txt_f:
+                text = txt_f.read()
 
-        # Удаляем исходный файл
         os.remove(local_file_path)
 
         if not text.strip():
-            await message.reply("Не удалось извлечь текст из документа.")
+            await message.reply(_("Не удалось извлечь текст из документа."))
             return
 
-        # Синтез и моментальная отправка частей
-        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger)
+        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
 
     except Exception as e:
         logger.error(f"Не удалось обработать документ: {e}")
-        await message.reply(f"Не удалось обработать документ: {e}")
+        await message.reply(_("Не удалось обработать документ: {error}").format(error=str(e)))
         if os.path.exists(local_file_path):
             os.remove(local_file_path)
 
 
 ---- FILE: main.py ----
+# ---- FILE: main.py ----
 import asyncio
 from bot import dp, bot
+from project_structure.paths import DATABASE_PATH
+import sqlite3
+
+def init_db():
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS user_lang (
+            user_id INTEGER PRIMARY KEY,
+            lang_code TEXT NOT NULL
+        );
+    """)
+    conn.commit()
+    conn.close()
 
 async def main():
+    init_db()
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
+---- FILE: middlewares/i18n_middleware.py ----
+# ---- FILE: middlewares/i18n_middleware.py ----
+import gettext
+from aiogram.types import TelegramObject
+from aiogram.dispatcher.middlewares.base import BaseMiddleware
+
+import os
+
+from utils.i18n import get_user_lang, get_translator
+
+class I18nMiddleware(BaseMiddleware):
+    async def __call__(self, handler, event: TelegramObject, data: dict):
+        if hasattr(event, "from_user") and event.from_user:
+            user_id = event.from_user.id
+            lang_code = get_user_lang(user_id)
+            t = get_translator(lang_code)
+            data["_"] = t.gettext
+        else:
+            data["_"] = gettext.gettext
+
+        return await handler(event, data)
 
 
 ---- FILE: middlewares/concurrency_limit.py ----
@@ -798,7 +863,7 @@ def parse_epub(file_path: str) -> str:
         return ""
 
 ---- FILE: utils/text_to_speech.py ----
-# utils/text_to_speech.py
+# ---- FILE: utils/text_to_speech.py ----
 import time
 import os
 import edge_tts
@@ -806,9 +871,35 @@ from aiogram.types import Message, FSInputFile
 from loguru import logger
 from config import AUDIO_FOLDER
 from .text_analysis import analyze_text
+from langdetect import detect, DetectorFactory, LangDetectException
 
-CHUNK_SIZE = 4500  # Примерное кол-во символов на часть
+# Чтобы результаты были воспроизводимыми
+DetectorFactory.seed = 0
 
+CHUNK_SIZE = 40000  # Примерное кол-во символов на часть
+
+VOICE_MAP = {
+    "ru": "ru-RU-DmitryNeural",       # Русский
+    "en": "en-US-JennyNeural",        # Английский (США)
+    "uk": "uk-UA-OstapNeural",        # Украинский
+    "zh-cn": "zh-CN-XiaoxiaoNeural",  # Китайский (упрощённый)
+    # Добавьте другие языки и голоса по необходимости
+}
+
+def detect_language(text: str) -> str:
+    """
+    Определяет язык текста.
+    Возвращает код языка, например, 'ru', 'en', 'uk', 'zh-cn'.
+    Если язык не определён, возвращает 'unknown'.
+    """
+    try:
+        lang = detect(text)
+        lang = lang.lower()
+        if lang.startswith("zh"):
+            return "zh-cn"  # или "zh-tw" для традиционного китайского
+        return lang
+    except LangDetectException:
+        return "unknown"
 
 async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
     """
@@ -824,43 +915,55 @@ async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
         start += chunk_size
     return chunks
 
-
 async def synthesize_chunk(text: str, mp3_path: str,
                            voice: str = "ru-RU-DmitryNeural",
                            rate: str = "+50%"):
     """
     Синтезирует отдельную часть текста и сохраняет её в mp3_path.
+    Использует указанный голос и скорость речи.
     """
     communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
     await communicate.save(mp3_path)
 
-
-async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message: Message, logger):
+async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message: Message, logger, _):
     """
     Синтезирует *большой* текст по частям и
     сразу отправляет каждую часть пользователю (без возвращения списка).
 
     1. Анализируем текст (text_analysis) -> шлём summary.
-    2. Разбиваем текст на части.
-    3. Каждую часть синтезируем, отправляем, удаляем.
+    2. Определяем язык текста и выбираем голос.
+    3. Разбиваем текст на части.
+    4. Каждую часть синтезируем, отправляем, удаляем.
     """
     if not text.strip():
-        logger.warning("Пустой текст для синтеза.")
-        await message.reply("Не удалось озвучить: пустой текст.")
+        logger.warning(_("Пустой текст для синтеза."))
+        await message.reply(_("Не удалось озвучить: пустой текст."))
         return
 
     if len(text) > 1000000:
-        logger.info(f"Слишком большой файл: {len(text)} символа\n\n")
-        await message.reply("Текст для озвучки слишком большой. Напишите @maksenro если хотите повысить лимиты!")
+        logger.info(_("Слишком большой файл: {len_text} символов").format(len_text=len(text)))
+        await message.reply(_("Текст для озвучки слишком большой. Напишите @maksenro если хотите повысить лимиты!"))
         return
 
-    logger.info(f"@{message.from_user.username}, длина - {len(text)}: {text[:100]}...\n\n")
+    logger.info(_("@{username}, длина - {len_text}: {preview}...").format(
+        username=message.from_user.username,
+        len_text=len(text),
+        preview=text[:100]
+    ))
     summary = await analyze_text(text)
     await message.reply(summary, parse_mode='HTML')
 
-    # Генерируем имя файла (упрощённо)
-    base_filename = f"{text[:25]}_{filename_prefix}"
+    # Определяем язык текста
+    lang = detect_language(text)
+    if lang == "unknown":
+        logger.warning(_("Не удалось определить язык текста. Используется голос по умолчанию."))
+        voice = "ru-RU-DmitryNeural"  # Голос по умолчанию
+        await message.reply(_("Не удалось определить язык текста. Используется голос по умолчанию."))
+    else:
+        voice = VOICE_MAP.get(lang, "ru-RU-DmitryNeural")  # fallback на русский
+        logger.info(_("Определён язык: {lang}. Используется голос: {voice}").format(lang=lang, voice=voice))
 
+    base_filename = f"{text[:25]}_{filename_prefix}"
     parts = await chunk_text(text)
     total_parts = len(parts)
 
@@ -869,46 +972,95 @@ async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message
         mp3_path = os.path.join(AUDIO_FOLDER, part_filename)
 
         start_time = time.time()
-        await synthesize_chunk(chunked_text, mp3_path)
+        await synthesize_chunk(chunked_text, mp3_path, voice=voice)
         end_time = time.time()
 
-        logger.debug(f"Часть {i}/{total_parts} синтезирована за {round(end_time - start_time, 2)} сек.")
+        logger.debug(_("Часть {i}/{total_parts} синтезирована за {seconds} сек.").format(
+            i=i,
+            total_parts=total_parts,
+            seconds=round(end_time - start_time, 2)
+        ))
 
         audio_file = FSInputFile(mp3_path)
         await message.reply_audio(audio=audio_file)
-
         os.remove(mp3_path)
 
 
+---- FILE: utils/i18n.py ----
+# ---- FILE: utils/i18n.py ----
+import gettext
+import os
+import sqlite3
+from project_structure.paths import DATABASE_PATH
+
+LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locales")
+
+def get_translator(lang_code: str):
+    if lang_code not in ['en', 'ru', 'uk', 'zh']:
+        lang_code = 'en'
+    try:
+        return gettext.translation(
+            domain='messages',
+            localedir=LOCALES_DIR,
+            languages=[lang_code]
+        )
+    except FileNotFoundError:
+        return gettext.translation(
+            domain='messages',
+            localedir=LOCALES_DIR,
+            languages=['en']
+        )
+
+def get_user_lang(user_id: int) -> str:
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT lang_code FROM user_lang WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return row[0]
+        else:
+            return "ru"  # fallback
+    except:
+        return "ru"
+
+def set_user_lang(user_id: int, lang_code: str):
+    conn = sqlite3.connect(DATABASE_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO user_lang (user_id, lang_code)
+        VALUES (?, ?)
+        ON CONFLICT(user_id) DO UPDATE SET lang_code=excluded.lang_code
+    """, (user_id, lang_code))
+    conn.commit()
+    conn.close()
+
+
 ---- FILE: project_structure/paths.py ----
+# ---- FILE: project_structure/paths.py ----
 from pathlib import Path
 
-# Корневая директория проекта (переходим на уровень выше от текущей директории)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATABASE_PATH = PROJECT_ROOT / 'MKvoiceDB.sqlite'
 
-DATABASE_PATH = PROJECT_ROOT / 'tcgCodes.sqlite'
-
-# Папка backup внутри project_structure
 STRUCTURE_DIR = PROJECT_ROOT / 'project_structure' / 'backup'
-STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)  # Создаём папку, если её нет
+STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Пути к файлам
 STRUCTURE_FILE = STRUCTURE_DIR / 'project_structure.txt'
 IMAGES_STRUCTURE_FILE = STRUCTURE_DIR / 'images_structure.txt'
 ARCHIVE_FILE = STRUCTURE_DIR / 'project_archive.zip'
 DATABASE_SCHEMA_FILE = STRUCTURE_DIR / 'database_schema_telegram_messages.sql'
 DB_DESCRIPTION_FILE = STRUCTURE_DIR / 'db_description.txt'
 
-# Игнорируемые элементы
 IGNORE_DIRS = {
     '.git', '.idea', '__pycache__', 'venv', 'env',
-    '.venv', '.env', 'node_modules', 'backup'  # Игнорируем директорию backup
+    '.venv', '.env', 'node_modules', 'backup'
 }
 IGNORE_FILES = {'.DS_Store', 'project_archive.zip'}
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.gif', '.bmp', '.tiff', '.svg', '.webp'}
 IGNORE_EXT = {'.pyc', '.pyo', '.log', '.db', '.zip', '.tar', '.gz', '.bz2', '.7z', '.rar'}
 
-# Путь к файлу логов (опционально, если используется)
 LOG_DIR = PROJECT_ROOT / 'logs'
 LOG_DIR.mkdir(exist_ok=True)
 
