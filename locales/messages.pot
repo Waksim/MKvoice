@@ -1,0 +1,284 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-01-10 17:21+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: middlewares/concurrency_limit.py:51
+msgid "You already have an active task. Please wait for it to finish."
+msgstr ""
+
+#: middlewares/rate_limit.py:42
+#, python-brace-format
+msgid "Too many requests, please try again later (limit: {rate_limit} s)."
+msgstr ""
+
+#: utils/text_analysis.py:40
+#, python-brace-format
+msgid "{minutes} min "
+msgstr ""
+
+#: utils/text_analysis.py:42
+#, python-brace-format
+msgid "{seconds} sec"
+msgstr ""
+
+#: utils/text_analysis.py:52
+msgid "Very easy to read"
+msgstr ""
+
+#: utils/text_analysis.py:54
+msgid "Easy to read"
+msgstr ""
+
+#: utils/text_analysis.py:56
+msgid "Moderately difficult"
+msgstr ""
+
+#: utils/text_analysis.py:58
+msgid "Hard to read"
+msgstr ""
+
+#: utils/text_analysis.py:60
+msgid "Very hard to read"
+msgstr ""
+
+#: utils/text_analysis.py:67
+#, python-brace-format
+msgid ""
+"📝 Your text contains {word_count} words and {char_count} characters.\n"
+"⏳ Approximate narration time: {estimated_time_str}.\n"
+"\n"
+"📊 <b>Text Analysis</b>:\n"
+"\n"
+"- <b>Top-5 words</b>: {top_words}\n"
+"- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
+"- <b>Suggested education level</b>: {grade_level}\n"
+"\n"
+"- <b>Key phrases</b>: {key_phrases}\n"
+msgstr ""
+
+#: utils/text_analysis.py:78
+#, python-brace-format
+msgid "{word} ({count})"
+msgstr ""
+
+#: utils/text_to_speech.py:82
+msgid "Empty text for synthesis."
+msgstr ""
+
+#: utils/text_to_speech.py:83
+msgid "Could not synthesize: empty text."
+msgstr ""
+
+#: utils/text_to_speech.py:87
+#, python-brace-format
+msgid "The text is too large: {len_text} characters"
+msgstr ""
+
+#: utils/text_to_speech.py:88
+msgid ""
+"The text is too large. Contact @maksenro if you want to increase limits!"
+msgstr ""
+
+#: utils/text_to_speech.py:91
+#, python-brace-format
+msgid "@{username}, length - {len_text}: {preview}..."
+msgstr ""
+
+#: utils/text_to_speech.py:101 utils/text_to_speech.py:103
+msgid "Could not detect language. Using default voice."
+msgstr ""
+
+#: utils/text_to_speech.py:106
+#, python-brace-format
+msgid "Detected language: {lang}. Using voice: {voice}"
+msgstr ""
+
+#: utils/text_to_speech.py:129
+#, python-brace-format
+msgid "Part {i}/{total_parts} synthesized in {seconds} sec."
+msgstr ""
+
+#: utils/text_to_speech.py:140
+#, python-brace-format
+msgid "Failed to synthesize part {i}: {error}"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:38
+msgid ""
+"👋 Hi! I can help you convert text to speech in various ways.\n"
+"\n"
+"🔹 <b>What I can do:</b>\n"
+"- Send me a text message to synthesize speech.\n"
+"- Send a link to a website to extract text and synthesize it.\n"
+"- Send a file (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) to "
+"extract text and synthesize it.\n"
+"- Add me to a group chat and use the command <b>/vv help</b> to see how to "
+"work with me in groups.\n"
+"\n"
+"📄 <b>Available commands:</b>\n"
+"<b>/help</b> - Show help\n"
+"<b>/change_lang</b> - Change interface language\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:69
+msgid "Please choose your language:"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:79
+msgid "Unsupported language."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:89
+msgid "Language updated!"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:98
+msgid ""
+"📖 <b>Available commands:</b>\n"
+"/start - Begin interaction with the bot\n"
+"/help - Show this message\n"
+"/change_lang - Change interface language\n"
+"\n"
+"🤖 <b>Bot capabilities:</b>\n"
+"- Send text messages, and the bot will synthesize them using text-to-"
+"speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</"
+"code> formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the "
+"text.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text messages: any text\n"
+"- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- Use <b>/change_lang</b> command to change the interface language.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, "
+"Chinese.\n"
+"\n"
+"👥 <b>Use in groups:</b>\n"
+"- Add the bot to a group.\n"
+"- Grant it the following permissions:\n"
+"  • Read messages\n"
+"  • Send messages\n"
+"  • Manage messages\n"
+"\n"
+"- <b>Available commands in groups:</b>\n"
+"  • /vv &lt;text&gt; - Synthesize the provided text.\n"
+"  • /vv &lt;link&gt; - Extract text from the link and synthesize it.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to "
+"message.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:137
+msgid "Access denied."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:144
+msgid "Log file does not exist."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:152
+msgid "No log messages."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:167
+msgid "📝 Last log lines:\n"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:173
+#, python-brace-format
+msgid "Failed to read log file: {error}"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:187 handlers/group_chat_handlers.py:70
+msgid "Could not extract text."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:201
+#, python-brace-format
+msgid "Failed to process URL: {error}"
+msgstr ""
+
+#: handlers/private_chat_handlers.py:211 handlers/group_chat_handlers.py:88
+msgid "Empty text."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:225
+msgid "File is too large (max 20 MB)."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:263
+msgid "Could not extract text from the document."
+msgstr ""
+
+#: handlers/private_chat_handlers.py:273
+#, python-brace-format
+msgid "Failed to process document: {error}"
+msgstr ""
+
+#: handlers/group_chat_handlers.py:26
+msgid ""
+"📖 <b>Help for /vv command:</b>\n"
+"\n"
+"🔹 <b>/vv &lt;text&gt;</b> - Synthesize the provided text.\n"
+"🔹 <b>/vv &lt;link&gt;</b> - Extract text from the link and synthesize it.\n"
+"🔹 <b>/vv</b> (in reply to a message) - Synthesize text from the replied-to "
+"message.\n"
+"🔹 <b>/vv help</b> or <b>/vv h</b> - Shows this help.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text: any text\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, "
+"Chinese.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/mkprod\">Support</"
+"a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+
+#: handlers/group_chat_handlers.py:52
+msgid "No text to synthesize."
+msgstr ""
+
+#: handlers/group_chat_handlers.py:60
+msgid "Please provide text after /vv or reply to a message."
+msgstr ""
+
+#: handlers/group_chat_handlers.py:84
+#, python-brace-format
+msgid "Failed to process link: {error}"
+msgstr ""
