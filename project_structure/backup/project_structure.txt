@@ -12,6 +12,8 @@ MKvoice/
     MKvoiceDB.sqlite
     main.py
     bot.log
+    filters/
+        chat_type.py
     locales/
         messages.pot
         compile_translations.sh
@@ -52,3 +54,6 @@ MKvoice/
         .DS_Store
         paths.py
         project_structure_creator.py
+    handlers/
+        private_chat_handlers.py
+        group_chat_handlers.py

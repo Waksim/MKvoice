@@ -1,4 +1,4 @@
-# ---- FILE: utils/i18n.py ----
+# ============================= FILE: utils/i18n.py =============================
 import gettext
 import os
 import sqlite3
@@ -7,6 +7,10 @@ from project_structure.paths import DATABASE_PATH, PROJECT_ROOT
 LOCALES_DIR = PROJECT_ROOT / "locales"
 
 def get_translator(lang_code: str):
+    """
+    Returns a gettext translation object for the specified lang_code.
+    If not found, defaults to 'en'.
+    """
     if lang_code not in ['en', 'ru', 'uk', 'zh']:
         lang_code = 'en'
     try:
@@ -23,6 +27,10 @@ def get_translator(lang_code: str):
         )
 
 def get_user_lang(user_id: int) -> str:
+    """
+    Retrieves the saved language code for a specific user from the database.
+    Defaults to 'ru' if not found or on error.
+    """
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -32,11 +40,14 @@ def get_user_lang(user_id: int) -> str:
         if row:
             return row[0]
         else:
-            return "ru"  # fallback
+            return "ru"
     except:
         return "ru"
 
 def set_user_lang(user_id: int, lang_code: str):
+    """
+    Updates or inserts the language code for a user in the database.
+    """
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("""

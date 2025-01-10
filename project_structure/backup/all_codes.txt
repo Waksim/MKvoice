@@ -11,8 +11,7 @@ CREATE TABLE user_lang (
 
 
 ---- FILE: config.py ----
-# config.py
-
+# ============================= FILE: config.py =============================
 import os
 from dotenv import load_dotenv
 
@@ -31,10 +30,19 @@ LOG_FILE = os.path.join(BASE_DIR, os.getenv("LOG_FILE", "bot_log.log"))
 # Directory to store audio files, defaults to 'audio' if not specified
 AUDIO_FOLDER = os.getenv("AUDIO_FOLDER", "audio")
 
-# Administrator ID, retrieved from environment variables and converted to integer
-# Defaults to 0 if not specified
+# Administrator ID retrieved from environment variables, converted to integer (default 0)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
 
+# Dictionary of available languages with corresponding flags
+AVAILABLE_LANGUAGES = {
+    'en': {'name': 'English', 'flag': '🇺🇸'},
+    'ru': {'name': 'Russian', 'flag': '🇷🇺'},
+    'uk': {'name': 'Ukrainian', 'flag': '🇺🇦'},
+    'zh': {'name': 'Chinese', 'flag': '🇨🇳'},
+}
+
+# Maximum length of a message, used to split long logs or text
+MAX_MESSAGE_LENGTH = 4000
 
 ---- FILE: test.py ----
 import os
@@ -288,20 +296,22 @@ if __name__ == '__main__':
 
 
 ---- FILE: bot.py ----
-# ---- FILE: bot.py ----
+# ============================= FILE: bot.py =============================
 import os
 import asyncio
-import chardet
-
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, FSInputFile
+from aiogram import Bot, Dispatcher, Router
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, Message
 from aiogram.fsm.storage.memory import MemoryStorage
 from loguru import logger
 
-from config import TOKEN, AUDIO_FOLDER, LOG_FILE, ADMIN_ID
+from config import TOKEN, AUDIO_FOLDER, LOG_FILE, ADMIN_ID, AVAILABLE_LANGUAGES
 
-# i18n
+# Import routers
+from handlers.group_chat_handlers import group_router
+from handlers.private_chat_handlers import private_router
+
+# Import middleware
 from middlewares.i18n_middleware import I18nMiddleware
 
 from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
@@ -312,187 +322,67 @@ from utils.i18n import get_translator, get_user_lang, set_user_lang
 from collections import deque
 from pathlib import Path
 
-# Подключаем middleware
-from middlewares.rate_limit import RateLimitMiddleware
-from middlewares.concurrency_limit import ConcurrencyLimitMiddleware
 
+# Initialize Bot and Dispatcher
 bot = Bot(token=TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
-dp.message.middleware(RateLimitMiddleware(rate_limit=5.0))
-dp.message.middleware(ConcurrencyLimitMiddleware(max_concurrent_tasks=1))
-dp.message.middleware(I18nMiddleware())
 
+# Register the i18n middleware
+i18n = I18nMiddleware(get_translator)
+dp.message.middleware(i18n)
+dp.callback_query.middleware(i18n)
+
+# Include routers
+dp.include_router(private_router)
+dp.include_router(group_router)
+
+# Create the audio folder if it does not exist
 audio_path = Path(AUDIO_FOLDER)
 audio_path.mkdir(parents=True, exist_ok=True)
 
+# Configure logging
 logger.add(LOG_FILE, rotation="1 MB", retention="10 days", compression="zip")
 
+# Maximum message length
 MAX_MESSAGE_LENGTH = 4000
 
+# Run the bot
+async def main():
+    await dp.start_polling(bot)
 
-@dp.message(Command('start'))
-async def cmd_start(message: Message, _):
-    user_id = message.from_user.id
-    lang_code = get_user_lang(user_id)
-    translator = get_translator(lang_code)
-    __ = translator.gettext  # Если нужно локально
-
-    await message.answer(_(
-        "Привет! Отправь мне текст или файл, а я озвучу."
-    ))
-
-
-@dp.message(Command('lang'))
-async def cmd_lang(message: Message, _):
-    parts = message.text.split()
-    if len(parts) < 2:
-        await message.reply(_("Usage: /lang <en|ru|uk|zh>"))
-        return
-
-    new_lang = parts[1].strip().lower()
-    if new_lang not in ['en', 'ru', 'uk', 'zh']:
-        await message.reply(_("Доступные языки: en, ru, uk, zh"))
-        return
-
-    set_user_lang(message.from_user.id, new_lang)
-
-    t = get_translator(new_lang)
-    await message.reply(t.gettext("Язык обновлён!"))
-
-
-@dp.message(Command(commands=["s", "S", "ы", "Ы"]))
-async def cmd_s(message: Message, _):
-    if message.from_user.id != ADMIN_ID:
-        logger.warning(f"Доступ запрещён для пользователя {message.from_user.id}")
-        await message.reply(_("Access denied."))
-        return
-
-    try:
-        log_file = Path(LOG_FILE)
-        if not log_file.exists():
-            logger.error(f"Лог-файл {LOG_FILE} не существует.")
-            await message.reply(_("Log file does not exist."))
-            return
-
-        with log_file.open('r', encoding='utf-8') as f:
-            last_n_lines = deque(f, 15)
-        last_lines = ''.join(last_n_lines)
-
-        if not last_lines.strip():
-            await message.reply(_("No log messages."))
-            return
-
-        messages_list = []
-        current_message = ""
-        for line in last_lines.splitlines(keepends=True):
-            if len(current_message) + len(line) > MAX_MESSAGE_LENGTH:
-                messages_list.append(current_message)
-                current_message = line
-            else:
-                current_message += line
-        if current_message:
-            messages_list.append(current_message)
-
-        for msg in messages_list:
-            await message.reply(_("📝 Last log lines:\n") + msg, parse_mode='HTML')
-            await asyncio.sleep(0.1)
-
-    except Exception as e:
-        logger.error(f"Failed to read log file: {e}")
-        await message.reply(_("Failed to read log file: {error}").format(error=str(e)))
-
-
-@dp.message(F.text.regexp(r'^https?://'))
-async def handle_url(message: Message, _):
-    url = message.text
-    try:
-        text_page = await extract_text_from_url_static(url)
-        if len(text_page) < 200:
-            text_page = await extract_text_from_url_dynamic(url)
-        if not text_page.strip():
-            await message.reply(_("Не удалось извлечь текст."))
-            return
-
-        await synthesize_text_to_audio_edge(
-            text_page,
-            str(message.from_user.id),
-            message,
-            logger,
-            _
-        )
-
-    except Exception as e:
-        await message.reply(_("Failed to process URL: {error}").format(error=str(e)))
-
-
-@dp.message(F.text)
-async def handle_text(message: Message, _):
-    text = message.text
-    if not text.strip():
-        await message.reply(_("Пустой текст."))
-        return
-
-    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
-
-
-@dp.message(F.document)
-async def handle_file(message: Message, _):
-    if message.document.file_size > 20 * 1024 * 1024:
-        await message.reply(_("Файл слишком большой (максимум 20 МБ)."))
-        return
-
-    file_extension = os.path.splitext(message.document.file_name)[1].lower()
-    local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
-
-    try:
-        with open(local_file_path, "wb") as f:
-            download_stream = await bot.download(message.document)
-            f.write(download_stream.read())
-
-        with open(local_file_path, 'rb') as f:
-            raw_data = f.read()
-        detected = chardet.detect(raw_data)
-        encoding = detected['encoding']
-        confidence = detected['confidence']
-        logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
-
-        if file_extension == ".docx":
-            text = parse_docx(local_file_path)
-        elif file_extension == ".fb2":
-            text = parse_fb2(local_file_path)
-        elif file_extension == ".epub":
-            text = parse_epub(local_file_path)
-        else:
-            if encoding is None:
-                encoding = 'utf-8'
-            with open(local_file_path, "r", encoding=encoding, errors='replace') as txt_f:
-                text = txt_f.read()
-
-        os.remove(local_file_path)
-
-        if not text.strip():
-            await message.reply(_("Не удалось извлечь текст из документа."))
-            return
-
-        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
-
-    except Exception as e:
-        logger.error(f"Не удалось обработать документ: {e}")
-        await message.reply(_("Не удалось обработать документ: {error}").format(error=str(e)))
-        if os.path.exists(local_file_path):
-            os.remove(local_file_path)
-
+if __name__ == '__main__':
+    asyncio.run(main())
 
 ---- FILE: main.py ----
-# ---- FILE: main.py ----
+# ============================= FILE: main.py =============================
 import asyncio
+
+from aiogram import Bot
+from aiogram.types import BotCommandScopeDefault, BotCommand
+
 from bot import dp, bot
 from project_structure.paths import DATABASE_PATH
 import sqlite3
 
+
+async def set_bot_commands(bot: Bot):
+    """
+    Sets default bot commands to guide the user.
+    """
+    commands = [
+        BotCommand(command="start", description="Start the bot"),
+        BotCommand(command="help", description="Show help"),
+        BotCommand(command="change_lang", description="Change language"),
+    ]
+    await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+
+
 def init_db():
+    """
+    Initializes the SQLite database and creates user_lang table if it does not exist.
+    """
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("""
@@ -505,48 +395,83 @@ def init_db():
     conn.close()
 
 async def main():
+    # Initialize database
     init_db()
+
+    # Set bot commands
+    await set_bot_commands(bot)
+
+    # Start polling updates
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
 
+---- FILE: filters/chat_type.py ----
+# ============================= FILE: filters/chat_type.py =============================
+from typing import Union
+from aiogram.filters import BaseFilter
+from aiogram.types import Message
+
+class ChatTypeFilter(BaseFilter):
+    """
+    A filter to allow messages only from specified chat types (e.g., private, group, supergroup).
+    """
+    def __init__(self, chat_type: Union[str, list]):
+        self.chat_type = chat_type
+
+    async def __call__(self, message: Message) -> bool:
+        if isinstance(self.chat_type, str):
+            return message.chat.type == self.chat_type
+        else:
+            return message.chat.type in self.chat_type
 
 ---- FILE: middlewares/i18n_middleware.py ----
-# ---- FILE: middlewares/i18n_middleware.py ----
-import gettext
-from aiogram.types import TelegramObject
-from aiogram.dispatcher.middlewares.base import BaseMiddleware
-
-import os
-
-from utils.i18n import get_user_lang, get_translator
+# ============================= FILE: middlewares/i18n_middleware.py =============================
+from aiogram import BaseMiddleware
+from aiogram.types import Message, CallbackQuery
+from utils.i18n import get_translator, get_user_lang
 
 class I18nMiddleware(BaseMiddleware):
-    async def __call__(self, handler, event: TelegramObject, data: dict):
-        if hasattr(event, "from_user") and event.from_user:
-            user_id = event.from_user.id
-            lang_code = get_user_lang(user_id)
-            t = get_translator(lang_code)
-            data["_"] = t.gettext
-        else:
-            data["_"] = gettext.gettext
+    """
+    Middleware that injects the translator function into the handler data
+    based on the user's saved language.
+    """
+    def __init__(self, get_translator_func):
+        self.get_translator = get_translator_func
+        super().__init__()
 
+    async def __call__(self, handler, event, data):
+        if isinstance(event, Message):
+            user_id = event.from_user.id
+        elif isinstance(event, CallbackQuery):
+            user_id = event.from_user.id
+        else:
+            user_id = None
+
+        if user_id:
+            lang_code = get_user_lang(user_id)
+            translator = self.get_translator(lang_code)
+        else:
+            # Default language
+            translator = self.get_translator('en')
+
+        data["_"] = translator.gettext
         return await handler(event, data)
 
-
 ---- FILE: middlewares/concurrency_limit.py ----
-# middlewares/concurrency_limit.py
+# ============================= FILE: middlewares/concurrency_limit.py =============================
 import asyncio
 from aiogram import types
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from typing import Callable, Dict, Any, Awaitable
 
+# Import translation utilities
+from utils.i18n import get_translator, get_user_lang
+
 class ConcurrencyLimitMiddleware(BaseMiddleware):
     """
-    Ограничение на одновременные "долгие" задачи (например, парсинг+синтез).
-    - max_concurrent_tasks: максимум параллельных задач на пользователя.
-    - semaphores: dict[user_id -> asyncio.Semaphore]
+    Restricts the number of concurrent long-running tasks per user.
     """
     def __init__(self, max_concurrent_tasks: int = 1):
         super().__init__()
@@ -555,7 +480,8 @@ class ConcurrencyLimitMiddleware(BaseMiddleware):
 
     def get_semaphore_for_user(self, user_id: int) -> asyncio.Semaphore:
         """
-        Создаёт (при необходимости) и возвращает семафор для пользователя.
+        Returns (or creates) a semaphore object for the given user_id
+        to track concurrency.
         """
         if user_id not in self.semaphores:
             self.semaphores[user_id] = asyncio.Semaphore(self.max_concurrent_tasks)
@@ -567,42 +493,52 @@ class ConcurrencyLimitMiddleware(BaseMiddleware):
         event: types.TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
+        """
+        Middleware handler that enforces concurrency limits.
+        """
+        # Check if the event is a message
         if isinstance(event, types.Message):
             user_id = event.from_user.id
+
+            # Retrieve user's language preference
+            lang_code = get_user_lang(user_id)
+            translator = get_translator(lang_code)
+            _ = translator.gettext  # Translation function
+
             semaphore = self.get_semaphore_for_user(user_id)
 
-            # Пытаемся занять "слот"
             if semaphore.locked():
-                # Уже все слоты заняты => откажем
+                # Send a translatable message to the user
                 await event.answer(
-                    "У вас уже есть активная задача. Дождитесь завершения предыдущей."
+                    _("You already have an active task. Please wait for it to finish.")
                 )
-                return
+                return  # Exit without handling the message
 
-            # otherwise, оборачиваем обработку в контекст
+            # Acquire semaphore and handle the message
             async with semaphore:
-                # Пока в контексте, слот занят; выходим из контекста — слот освободился
                 return await handler(event, data)
 
+        # For other types of events, proceed without restrictions
         return await handler(event, data)
 
 
 ---- FILE: middlewares/rate_limit.py ----
-# middlewares/rate_limit.py
+# ============================= FILE: middlewares/rate_limit.py =============================
 import time
 from aiogram import types
 from aiogram.dispatcher.middlewares.base import BaseMiddleware
 from typing import Callable, Dict, Any, Awaitable
 
+# Import translation utilities
+from utils.i18n import get_translator, get_user_lang
+
 class RateLimitMiddleware(BaseMiddleware):
     """
-    Простое ограничение частоты запросов:
-    - Не более 1 сообщения от пользователя за 'rate_limit' секунд.
+    Simple rate limit middleware: allows 1 message per user within 'rate_limit' seconds.
     """
-    def __init__(self, rate_limit: float = 5.0):
+    def __init__(self, rate_limit: float = 2.0):
         super().__init__()
         self.rate_limit = rate_limit
-        # user_id -> timestamp последнего принятого сообщения
         self.users_last_time = {}
 
     async def __call__(
@@ -611,33 +547,44 @@ class RateLimitMiddleware(BaseMiddleware):
         event: types.TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
+        """
+        Middleware handler that enforces rate limits.
+        """
+        # Check if the event is a message
         if isinstance(event, types.Message):
             user_id = event.from_user.id
             current_time = time.time()
             last_time = self.users_last_time.get(user_id, 0)
 
-            if (current_time - last_time) < self.rate_limit:
-                # Слишком частые сообщения от этого пользователя
-                await event.answer(
-                    f"Слишком много запросов, попробуйте чуть позже (лимит: {self.rate_limit} c)."
-                )
-                return  # Блокируем дальнейшую обработку
+            # Retrieve user's language preference
+            lang_code = get_user_lang(user_id)
+            translator = get_translator(lang_code)
+            _ = translator.gettext  # Translation function
 
-            # Обновляем время последней успешной обработки
+            if (current_time - last_time) < self.rate_limit:
+                # Send a translatable rate limit message to the user
+                await event.answer(
+                    _("Too many requests, please try again later (limit: {rate_limit} s).").format(rate_limit=self.rate_limit)
+                )
+                return  # Exit without handling the message
+
+            # Update the last message time for the user
             self.users_last_time[user_id] = current_time
 
+        # Proceed to handle the event
         return await handler(event, data)
 
 
 ---- FILE: utils/text_extraction.py ----
+# ============================= FILE: utils/text_extraction.py =============================
 import asyncio
 from newspaper import Article
 from playwright.async_api import async_playwright
 
 async def extract_text_from_url_static(url: str) -> str:
     """
-    Attempt to extract text from a URL using the Newspaper library.
-    This works best for static pages without heavy JavaScript.
+    Extract text from a URL using the Newspaper library.
+    Works best for static pages.
     """
     article = Article(url)
     article.download()
@@ -647,8 +594,7 @@ async def extract_text_from_url_static(url: str) -> str:
 async def extract_text_from_url_dynamic(url: str) -> str:
     """
     Use Playwright to extract text from dynamically generated webpages.
-    If static extraction fails or returns too little content,
-    we fallback to dynamic extraction.
+    Fallback if static extraction returns too little content.
     """
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -656,7 +602,6 @@ async def extract_text_from_url_dynamic(url: str) -> str:
         try:
             await page.goto(url, timeout=60000)
 
-            # Try a set of known selectors that often contain main content
             special_selectors = [".ReadTextContainerIn"]
             selectors = special_selectors + ["article", ".content", ".main-content"]
             article_text = None
@@ -672,7 +617,6 @@ async def extract_text_from_url_dynamic(url: str) -> str:
                 except Exception:
                     continue
 
-            # If no suitable selector is found, fallback to body text extraction
             if not article_text or article_text.strip() == "":
                 article_text = await page.evaluate("document.body.innerText")
 
@@ -682,19 +626,18 @@ async def extract_text_from_url_dynamic(url: str) -> str:
         finally:
             await browser.close()
 
-
 ---- FILE: utils/text_analysis.py ----
+# ============================= FILE: utils/text_analysis.py =============================
 import re
 from collections import Counter
 import textstat
 import nltk
 from rake_nltk import Rake
 
-# Download required NLTK data silently if not present
 nltk.download('stopwords', quiet=True)
 nltk.download('punkt', quiet=True)
 
-# Set of stopwords to be filtered out from the frequency count
+# Stop words in Russian plus some additional ones
 STOP_WORDS = set(nltk.corpus.stopwords.words('russian')).union({
     "в", "на", "к", "по", "с", "для", "и", "или", "от", "из", "за", "о", "об",
     "что", "не", "это", "но", "так", "же", "как", "когда", "если", "где", "кто",
@@ -703,17 +646,17 @@ STOP_WORDS = set(nltk.corpus.stopwords.words('russian')).union({
     "может", "после", "перед", "при", "тут", "да"
 })
 
-async def analyze_text(text: str) -> str:
+async def analyze_text(text: str, _: callable) -> str:
     """
-    Analyze the given text by:
-    - Counting words and characters
-    - Estimating reading time
-    - Finding top-5 most common words (excluding stopwords)
-    - Calculating reading difficulty via Flesch Reading Ease
-    - Determining education level required
-    - Extracting top key phrases via RAKE
+    Analyzes text:
+    - Word/character counts
+    - Estimated reading time
+    - Top-5 most common words (excluding stopwords)
+    - Reading difficulty (Flesch Reading Ease)
+    - Education level required
+    - Key phrases via RAKE
 
-    Returns a formatted summary string.
+    Returns a formatted summary string in the user's language via _() for i18n.
     """
     word_count = len(text.split())
     char_count = len(text)
@@ -723,52 +666,55 @@ async def analyze_text(text: str) -> str:
 
     estimated_time_str = ""
     if estimated_time_minutes > 0:
-        estimated_time_str += f"{estimated_time_minutes} min "
+        estimated_time_str += _("{minutes} min ").format(minutes=estimated_time_minutes)
     if estimated_time_remainder_seconds > 0 or estimated_time_minutes == 0:
-        estimated_time_str += f"{estimated_time_remainder_seconds} sec"
+        estimated_time_str += _("{seconds} sec").format(seconds=estimated_time_remainder_seconds)
 
-    # Find top words excluding stopwords
     words = re.findall(r'\b\w+\b', text.lower())
     filtered_words = [word for word in words if word not in STOP_WORDS]
     common_words = Counter(filtered_words).most_common(5)
 
-    # Reading difficulty and grade level
     reading_ease = textstat.flesch_reading_ease(text)
     grade_level = textstat.text_standard(text, float_output=False)
 
-    # Interpret reading ease
     if reading_ease > 80:
-        reading_level = "Very easy to read"
+        reading_level = _("Very easy to read")
     elif reading_ease > 60:
-        reading_level = "Easy to read"
+        reading_level = _("Easy to read")
     elif reading_ease > 40:
-        reading_level = "Moderately difficult"
+        reading_level = _("Moderately difficult")
     elif reading_ease > 20:
-        reading_level = "Hard to read"
+        reading_level = _("Hard to read")
     else:
-        reading_level = "Very hard to read"
+        reading_level = _("Very hard to read")
 
-    # Key phrases extraction using RAKE
     rake = Rake()
     rake.extract_keywords_from_text(text)
     key_phrases = rake.get_ranked_phrases()[:5]
 
-    # Compile the summary
-    summary_of_the_text = (
-        f"📝 Your text contains {word_count} words and {char_count} characters.\n"
-        f"⏳ Approximate narration time: {estimated_time_str}.\n\n"
-        f"📊 <b>Text Analysis</b>:\n\n"
-        f"- <b>Top-5 words</b>: {', '.join([f'{w} ({c})' for w, c in common_words])}\n"
-        f"- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
-        f"- <b>Suggested education level</b>: {grade_level}\n\n"
-        f"- <b>Key phrases</b>: {', '.join(key_phrases)}\n"
+    summary_of_the_text = _(
+        "📝 Your text contains {word_count} words and {char_count} characters.\n"
+        "⏳ Approximate narration time: {estimated_time_str}.\n\n"
+        "📊 <b>Text Analysis</b>:\n\n"
+        "- <b>Top-5 words</b>: {top_words}\n"
+        "- <b>Reading level</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
+        "- <b>Suggested education level</b>: {grade_level}\n\n"
+        "- <b>Key phrases</b>: {key_phrases}\n"
+    ).format(
+        word_count=word_count,
+        char_count=char_count,
+        estimated_time_str=estimated_time_str,
+        top_words=', '.join([_("{word} ({count})").format(word=w, count=c) for w, c in common_words]),
+        reading_level=reading_level,
+        reading_ease=reading_ease,
+        grade_level=grade_level,
+        key_phrases=', '.join(key_phrases)
     )
 
     return summary_of_the_text
 
-
 ---- FILE: utils/document_parsers.py ----
-# utils/document_parsers.py
+# ============================= FILE: utils/document_parsers.py =============================
 from xml.etree import ElementTree
 from docx import Document
 from ebooklib import epub, ITEM_DOCUMENT
@@ -776,12 +722,9 @@ from bs4 import BeautifulSoup
 import warnings
 from loguru import logger
 
-# Новая зависимость
-
 def parse_docx(file_path: str) -> str:
     """
-    Парсинг .docx-файла в текст.
-    ...
+    Parse a .docx file into text.
     """
     try:
         doc = Document(file_path)
@@ -792,16 +735,15 @@ def parse_docx(file_path: str) -> str:
                 full_text.append(paragraph_text)
         extracted_text = "\n".join(full_text)
         words_count = len(extracted_text.split())
-        logger.info(f"[DOCX] Извлечено {words_count} слов из файла {file_path}")
+        logger.info(f"[DOCX] Extracted {words_count} words from {file_path}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге DOCX файла {file_path}: {e}")
+        logger.error(f"Error parsing DOCX {file_path}: {e}")
         return ""
 
 def parse_fb2(file_path: str) -> str:
     """
-    Парсинг .fb2-файла в текст.
-    ...
+    Parse an .fb2 file into text.
     """
     try:
         with open(file_path, 'rb') as f:
@@ -820,23 +762,22 @@ def parse_fb2(file_path: str) -> str:
                 text_chunks.append(sec_text)
         extracted_text = "\n\n".join(text_chunks).strip()
         words_count = len(extracted_text.split())
-        logger.info(f"[FB2] Извлечено {words_count} слов из файла {file_path}")
+        logger.info(f"[FB2] Extracted {words_count} words from {file_path}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге FB2 файла {file_path}: {e}")
+        logger.error(f"Error parsing FB2 {file_path}: {e}")
         return ""
 
 def parse_epub(file_path: str) -> str:
     """
-    Парсинг .epub-файла в текст.
-    ...
+    Parse an .epub file into text.
     """
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             book = epub.read_epub(file_path)
         items = list(book.get_items_of_type(ITEM_DOCUMENT))
-        logger.info(f"Количество документов в EPUB: {len(items)}")
+        logger.info(f"EPUB has {len(items)} document items")
         full_text = []
 
         for idx, item in enumerate(items, start=1):
@@ -850,20 +791,20 @@ def parse_epub(file_path: str) -> str:
                     para.get_text(separator=' ', strip=True) for para in paragraphs
                 ).strip()
 
-                logger.debug(f"[EPUB] Часть {idx}: извлечено {len(text_only.split())} слов.")
+                logger.debug(f"[EPUB] Part {idx}: extracted {len(text_only.split())} words.")
                 if text_only:
                     full_text.append(text_only)
 
         extracted_text = "\n".join(full_text)
         total_words = len(extracted_text.split())
-        logger.info(f"[EPUB] Общее количество извлечённых слов: {total_words}")
+        logger.info(f"[EPUB] Total extracted words: {total_words}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге EPUB файла {file_path}: {e}")
+        logger.error(f"Error parsing EPUB {file_path}: {e}")
         return ""
 
 ---- FILE: utils/text_to_speech.py ----
-# ---- FILE: utils/text_to_speech.py ----
+# ============================= FILE: utils/text_to_speech.py =============================
 import time
 import os
 import edge_tts
@@ -872,39 +813,38 @@ from loguru import logger
 from config import AUDIO_FOLDER
 from .text_analysis import analyze_text
 from langdetect import detect, DetectorFactory, LangDetectException
+import re
+import uuid  # for generating unique identifiers
 
-# Чтобы результаты были воспроизводимыми
 DetectorFactory.seed = 0
 
-CHUNK_SIZE = 40000  # Примерное кол-во символов на часть
+CHUNK_SIZE = 40000
 
 VOICE_MAP = {
-    "ru": "ru-RU-DmitryNeural",       # Русский
-    "en": "en-US-JennyNeural",        # Английский (США)
-    "uk": "uk-UA-OstapNeural",        # Украинский
-    "zh-cn": "zh-CN-XiaoxiaoNeural",  # Китайский (упрощённый)
-    # Добавьте другие языки и голоса по необходимости
+    "ru": "ru-RU-DmitryNeural",
+    "en": "en-US-JennyNeural",
+    "uk": "uk-UA-OstapNeural",
+    "zh-cn": "zh-CN-XiaoxiaoNeural",
 }
 
 def detect_language(text: str) -> str:
     """
-    Определяет язык текста.
-    Возвращает код языка, например, 'ru', 'en', 'uk', 'zh-cn'.
-    Если язык не определён, возвращает 'unknown'.
+    Detects the language of the text.
+    Returns language code (e.g., 'ru', 'en', 'uk', 'zh-cn').
+    If detection fails, returns 'unknown'.
     """
     try:
         lang = detect(text)
         lang = lang.lower()
         if lang.startswith("zh"):
-            return "zh-cn"  # или "zh-tw" для традиционного китайского
+            return "zh-cn"
         return lang
     except LangDetectException:
         return "unknown"
 
 async def chunk_text(text: str, chunk_size: int = CHUNK_SIZE):
     """
-    Разбивает текст на части по chunk_size символов.
-    Возвращает список строк.
+    Splits text into parts of up to chunk_size characters.
     """
     chunks = []
     start = 0
@@ -919,83 +859,111 @@ async def synthesize_chunk(text: str, mp3_path: str,
                            voice: str = "ru-RU-DmitryNeural",
                            rate: str = "+50%"):
     """
-    Синтезирует отдельную часть текста и сохраняет её в mp3_path.
-    Использует указанный голос и скорость речи.
+    Synthesizes a single chunk of text and saves it to mp3_path using Edge TTS.
     """
     communicate = edge_tts.Communicate(text=text, voice=voice, rate=rate)
     await communicate.save(mp3_path)
 
+def sanitize_filename(text: str) -> str:
+    """
+    Sanitizes the input text to create a valid filename.
+    Removes or replaces characters that are not allowed in filenames.
+    """
+    # Remove invalid characters
+    sanitized = re.sub(r'[<>:"/\\|?*\x00-\x1F]', '', text)
+    # Replace spaces with underscores
+    sanitized = re.sub(r'\s+', '_', sanitized)
+    # Limit the filename length to 50 characters
+    return sanitized[:50] if len(sanitized) > 50 else sanitized
+
 async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message: Message, logger, _):
     """
-    Синтезирует *большой* текст по частям и
-    сразу отправляет каждую часть пользователю (без возвращения списка).
-
-    1. Анализируем текст (text_analysis) -> шлём summary.
-    2. Определяем язык текста и выбираем голос.
-    3. Разбиваем текст на части.
-    4. Каждую часть синтезируем, отправляем, удаляем.
+    Synthesizes large text by parts and sends each part to the user immediately:
+    1. Analyze text and send summary.
+    2. Detect language and pick a corresponding voice.
+    3. Split text into parts.
+    4. Synthesize and send each part, then remove the file.
     """
     if not text.strip():
-        logger.warning(_("Пустой текст для синтеза."))
-        await message.reply(_("Не удалось озвучить: пустой текст."))
+        logger.warning(_("Empty text for synthesis."))
+        await message.reply(_("Could not synthesize: empty text."))
         return
 
     if len(text) > 1000000:
-        logger.info(_("Слишком большой файл: {len_text} символов").format(len_text=len(text)))
-        await message.reply(_("Текст для озвучки слишком большой. Напишите @maksenro если хотите повысить лимиты!"))
+        logger.info(_("The text is too large: {len_text} characters").format(len_text=len(text)))
+        await message.reply(_("The text is too large. Contact @maksenro if you want to increase limits!"))
         return
 
-    logger.info(_("@{username}, длина - {len_text}: {preview}...").format(
-        username=message.from_user.username,
+    logger.info(_("@{username}, length - {len_text}: {preview}...").format(
+        username=message.from_user.username if message.from_user.username else "User",
         len_text=len(text),
         preview=text[:100]
     ))
-    summary = await analyze_text(text)
+    summary = await analyze_text(text, _)
     await message.reply(summary, parse_mode='HTML')
 
-    # Определяем язык текста
     lang = detect_language(text)
     if lang == "unknown":
-        logger.warning(_("Не удалось определить язык текста. Используется голос по умолчанию."))
-        voice = "ru-RU-DmitryNeural"  # Голос по умолчанию
-        await message.reply(_("Не удалось определить язык текста. Используется голос по умолчанию."))
+        logger.warning(_("Could not detect language. Using default voice."))
+        voice = "ru-RU-DmitryNeural"
+        await message.reply(_("Could not detect language. Using default voice."))
     else:
-        voice = VOICE_MAP.get(lang, "ru-RU-DmitryNeural")  # fallback на русский
-        logger.info(_("Определён язык: {lang}. Используется голос: {voice}").format(lang=lang, voice=voice))
+        voice = VOICE_MAP.get(lang, "ru-RU-DmitryNeural")
+        logger.info(_("Detected language: {lang}. Using voice: {voice}").format(lang=lang, voice=voice))
 
-    base_filename = f"{text[:25]}_{filename_prefix}"
+    # Create base filename by sanitizing the first 25 characters of the text
+    base_text = text[:25]
+    sanitized_base = sanitize_filename(base_text)
+    base_filename = f"{sanitized_base}_{filename_prefix}"
     parts = await chunk_text(text)
     total_parts = len(parts)
 
     for i, chunked_text in enumerate(parts, start=1):
-        part_filename = f"{i}_of_{total_parts}_{base_filename}.mp3"
+        # Generate a unique filename using UUID for extra uniqueness
+        unique_id = uuid.uuid4().hex
+        if total_parts > 1:
+            part_filename = f"{i}_of_{total_parts}_{base_filename}_{unique_id}.mp3"
+        else:
+            part_filename = f"{base_filename}_{unique_id}.mp3"
         mp3_path = os.path.join(AUDIO_FOLDER, part_filename)
 
         start_time = time.time()
-        await synthesize_chunk(chunked_text, mp3_path, voice=voice)
-        end_time = time.time()
+        try:
+            await synthesize_chunk(chunked_text, mp3_path, voice=voice)
+            end_time = time.time()
 
-        logger.debug(_("Часть {i}/{total_parts} синтезирована за {seconds} сек.").format(
-            i=i,
-            total_parts=total_parts,
-            seconds=round(end_time - start_time, 2)
-        ))
+            logger.debug(_("Part {i}/{total_parts} synthesized in {seconds} sec.").format(
+                i=i,
+                total_parts=total_parts,
+                seconds=round(end_time - start_time, 2)
+            ))
 
-        audio_file = FSInputFile(mp3_path)
-        await message.reply_audio(audio=audio_file)
-        os.remove(mp3_path)
-
+            audio_file = FSInputFile(mp3_path)
+            await message.reply_audio(audio=audio_file)
+            logger.info(f"Sent audio part {i}/{total_parts} to user {message.from_user.id}.")
+        except Exception as e:
+            logger.error(f"Error synthesizing part {i}/{total_parts}: {e}")
+            await message.reply(_("Failed to synthesize part {i}: {error}").format(i=i, error=str(e)))
+        finally:
+            # Remove the file if it exists
+            if os.path.exists(mp3_path):
+                os.remove(mp3_path)
+                logger.info(f"Removed temporary audio file {mp3_path}.")
 
 ---- FILE: utils/i18n.py ----
-# ---- FILE: utils/i18n.py ----
+# ============================= FILE: utils/i18n.py =============================
 import gettext
 import os
 import sqlite3
-from project_structure.paths import DATABASE_PATH
+from project_structure.paths import DATABASE_PATH, PROJECT_ROOT
 
-LOCALES_DIR = os.path.join(os.path.dirname(__file__), "locales")
+LOCALES_DIR = PROJECT_ROOT / "locales"
 
 def get_translator(lang_code: str):
+    """
+    Returns a gettext translation object for the specified lang_code.
+    If not found, defaults to 'en'.
+    """
     if lang_code not in ['en', 'ru', 'uk', 'zh']:
         lang_code = 'en'
     try:
@@ -1012,6 +980,10 @@ def get_translator(lang_code: str):
         )
 
 def get_user_lang(user_id: int) -> str:
+    """
+    Retrieves the saved language code for a specific user from the database.
+    Defaults to 'ru' if not found or on error.
+    """
     try:
         conn = sqlite3.connect(DATABASE_PATH)
         cursor = conn.cursor()
@@ -1021,11 +993,14 @@ def get_user_lang(user_id: int) -> str:
         if row:
             return row[0]
         else:
-            return "ru"  # fallback
+            return "ru"
     except:
         return "ru"
 
 def set_user_lang(user_id: int, lang_code: str):
+    """
+    Updates or inserts the language code for a user in the database.
+    """
     conn = sqlite3.connect(DATABASE_PATH)
     cursor = conn.cursor()
     cursor.execute("""
@@ -1036,9 +1011,8 @@ def set_user_lang(user_id: int, lang_code: str):
     conn.commit()
     conn.close()
 
-
 ---- FILE: project_structure/paths.py ----
-# ---- FILE: project_structure/paths.py ----
+# ============================= FILE: project_structure/paths.py =============================
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -1064,14 +1038,13 @@ IGNORE_EXT = {'.pyc', '.pyo', '.log', '.db', '.zip', '.tar', '.gz', '.bz2', '.7z
 LOG_DIR = PROJECT_ROOT / 'logs'
 LOG_DIR.mkdir(exist_ok=True)
 
-
 ---- FILE: project_structure/project_structure_creator.py ----
+# ============================= FILE: project_structure/project_structure_creator.py =============================
 import zipfile
 import sqlite3
 import os
 from pathlib import Path
 
-# Исправленный импорт: убедитесь, что папка называется 'project_structure', а не 'project_stucture'
 from project_structure.paths import (
     PROJECT_ROOT,
     STRUCTURE_DIR,
@@ -1087,34 +1060,29 @@ from project_structure.paths import (
     DATABASE_PATH
 )
 
-
 def should_ignore(file_path: Path, relative_path: Path, ignore_dirs, ignore_files, ignore_ext) -> bool:
     """
-    Проверяет, нужно ли пропускать файл/директорию при архивировании (и в других операциях).
+    Checks if the file/dir should be ignored during archiving or other operations.
     """
-    # Проверка на директории
     for ignore_dir in ignore_dirs:
         ignore_dir_path = Path(ignore_dir)
         if ignore_dir_path in relative_path.parents:
-            print(f"Игнорируется файл/папка {relative_path} из-за игнорируемой директории {ignore_dir}")
+            print(f"Ignoring {relative_path} due to ignored directory {ignore_dir}")
             return True
 
-    # Игнорируем по имени целиком (например, .DS_Store, project_archive.zip и пр.)
     if relative_path.name in ignore_files:
-        print(f"Игнорируется файл {relative_path} из-за игнорируемого имени")
+        print(f"Ignoring file {relative_path} due to ignored name")
         return True
 
-    # Игнорируем по расширению
     if relative_path.suffix.lower() in ignore_ext:
-        print(f"Игнорируется файл {relative_path} из-за игнорируемого расширения")
+        print(f"Ignoring file {relative_path} due to ignored extension")
         return True
 
     return False
 
-
 def get_project_structure(root_dir: Path, output_file: Path, ignore_dirs):
     """
-    Рекурсивно обходит структуру проекта и записывает дерево файлов в output_file.
+    Recursively walk the project structure and write the directory tree to output_file.
     """
     with output_file.open('w', encoding='utf-8') as f:
         for dirpath, dirnames, filenames in os.walk(root_dir):
@@ -1124,14 +1092,11 @@ def get_project_structure(root_dir: Path, output_file: Path, ignore_dirs):
             except ValueError:
                 continue
 
-            # Убираем из dirnames те, что содержатся в ignore_dirs (по имени),
-            # чтобы не заходить внутрь. Например, если 'backup' в ignore_dirs, не заходить в 'backup'
             dirnames[:] = [
                 d for d in dirnames
                 if d not in ignore_dirs
             ]
 
-            # Вычисляем уровень вложенности для отступов
             if relative_dir == Path('.'):
                 level = 0
             else:
@@ -1146,7 +1111,7 @@ def get_project_structure(root_dir: Path, output_file: Path, ignore_dirs):
 
 def get_images_structure(root_dir: Path, image_extensions, output_file: Path, ignore_dirs):
     """
-    Рекурсивно обходит структуру проекта и записывает дерево изображений в output_file.
+    Recursively walk the project and write the tree of images to output_file.
     """
     with output_file.open('w', encoding='utf-8') as f:
         for dirpath, dirnames, filenames in os.walk(root_dir):
@@ -1161,7 +1126,6 @@ def get_images_structure(root_dir: Path, image_extensions, output_file: Path, ig
                 if d not in ignore_dirs
             ]
 
-            # Фильтруем только изображения
             image_files = [
                 file for file in filenames
                 if (current_dir / file).suffix.lower() in image_extensions
@@ -1180,15 +1144,13 @@ def get_images_structure(root_dir: Path, image_extensions, output_file: Path, ig
 
 def export_database_schema(db_path: Path, output_file: Path):
     """
-    Экспортирует полную схему базы данных, включая таблицы, индексы, вьюхи и триггеры.
+    Exports the full database schema including tables, indexes, views, and triggers.
     """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         with output_file.open('w', encoding='utf-8') as f:
-            # Экспортируем все объекты (таблицы, индексы, вьюхи, триггеры),
-            # исключая служебное, если нужно (например sqlite_sequence).
             cursor.execute("SELECT type, name, sql FROM sqlite_master WHERE sql IS NOT NULL;")
             objects = cursor.fetchall()
 
@@ -1196,10 +1158,10 @@ def export_database_schema(db_path: Path, output_file: Path):
                 f.write(f"-- {obj_type.upper()}: {obj_name}\n")
                 f.write(f"{obj_sql};\n\n")
 
-            print(f"Схема базы данных экспортирована в '{output_file}'.")
+            print(f"Database schema exported to '{output_file}'.")
         conn.close()
     except Exception as e:
-        print(f"Ошибка при экспорте схемы базы данных: {e}")
+        print(f"Error exporting database schema: {e}")
 
 
 def create_zip_archive(
@@ -1211,14 +1173,12 @@ def create_zip_archive(
     extra_files_to_add=None
 ):
     """
-    Создаёт zip-архив всего проекта, игнорируя ненужные файлы/папки.
-    Также добавляет (в том же потоке) конкретные файлы (extra_files_to_add),
-    чтобы избежать дубликатов.
+    Creates a zip archive of the entire project, ignoring unneeded files/folders.
+    Also adds any extra_files_to_add to the archive if needed.
     """
     added_rel_paths = set()
 
     with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
-        # 1. Пробегаемся по всему проекту и добавляем всё, что не игнорируется
         for dirpath, dirnames, filenames in os.walk(root_dir):
             current_dir = Path(dirpath)
             try:
@@ -1226,7 +1186,6 @@ def create_zip_archive(
             except ValueError:
                 continue
 
-            # Фильтрация вложенных директорий
             dirnames[:] = [
                 d for d in dirnames
                 if d not in ignore_dirs
@@ -1244,30 +1203,27 @@ def create_zip_archive(
                     zipf.write(file_path, arcname=rel_path_str)
                     added_rel_paths.add(rel_path_str)
                 else:
-                    print(f"Файл '{rel_path}' уже добавлен в архив, пропускаем.")
+                    print(f"File '{rel_path}' already in archive, skipping.")
 
-        # 2. Добавляем "специфические" файлы, если нужно
         if extra_files_to_add:
             for special_file in extra_files_to_add:
                 if not special_file.exists() or not special_file.is_file():
-                    print(f"Файл '{special_file}' не найден и не был добавлен в архив.")
+                    print(f"File '{special_file}' not found, skipping.")
                     continue
 
-                # Относительный путь
                 try:
                     arcname = special_file.relative_to(root_dir)
                 except ValueError:
-                    # Если файл вне root_dir
                     arcname = special_file.name
 
                 arcname_str = str(arcname).replace(os.sep, '/')
                 if arcname_str not in added_rel_paths:
                     zipf.write(special_file, arcname=arcname_str)
                     added_rel_paths.add(arcname_str)
-                    print(f"Добавлен файл '{special_file}' в архив.")
+                    print(f"Added file '{special_file}' to archive.")
                 else:
-                    print(f"Файл '{special_file}' уже есть в архиве, пропускаем.")
-    print(f"Архив '{archive_path}' успешно создан.")
+                    print(f"File '{special_file}' already in archive, skipping.")
+    print(f"Archive '{archive_path}' created successfully.")
 
 
 def create_all_codes_file(
@@ -1279,23 +1235,19 @@ def create_all_codes_file(
     database_schema_file: Path = None
 ):
     """
-    Создаёт файл all_codes.txt, в котором:
-    1. Сначала (при наличии) пишется содержимое экспортированной схемы БД.
-    2. Затем содержимое всех неигнорируемых .py файлов в формате:
-       ---- FILE: <относительный путь> ----
-       <содержимое файла>
+    Creates a file all_codes.txt containing:
+    1. The database schema (if available).
+    2. The content of all non-ignored .py files with a heading.
     """
     with output_file.open('w', encoding='utf-8') as out:
-        # 1. Добавляем схему БД (если есть и если она создана)
         if database_schema_file and database_schema_file.exists():
             db_schema_content = database_schema_file.read_text(encoding='utf-8', errors='replace')
             out.write("====== DATABASE SCHEMA BEGIN ======\n\n")
             out.write(db_schema_content)
             out.write("\n====== DATABASE SCHEMA END ======\n\n\n")
         else:
-            out.write("-- Схема базы данных отсутствует или не была экспортирована --\n\n")
+            out.write("-- Database schema is missing or was not exported --\n\n")
 
-        # 2. Обходим все файлы проекта, игнорируя лишние, и добавляем только .py файлы
         for dirpath, dirnames, filenames in os.walk(root_dir):
             current_dir = Path(dirpath)
             try:
@@ -1312,11 +1264,9 @@ def create_all_codes_file(
                 file_path = current_dir / filename
                 rel_path = file_path.relative_to(root_dir)
 
-                # Пропускаем файлы по тем же критериям игнорирования
                 if should_ignore(file_path, rel_path, ignore_dirs, ignore_files, ignore_ext):
                     continue
 
-                # Добавляем только .py файлы
                 if file_path.suffix.lower() != '.py':
                     continue
 
@@ -1324,39 +1274,34 @@ def create_all_codes_file(
                 try:
                     content = file_path.read_text(encoding='utf-8', errors='replace')
                 except Exception as e:
-                    content = f"Невозможно прочитать файл из-за ошибки: {e}\n"
+                    content = f"Cannot read file due to error: {e}\n"
                 out.write(content)
                 out.write("\n\n")
 
 
 if __name__ == '__main__':
-    # 1. Генерация структуры проекта
-    print("Генерация структуры проекта...")
+    print("Generating project structure...")
     get_project_structure(PROJECT_ROOT, STRUCTURE_FILE, IGNORE_DIRS)
-    print(f"Структура проекта сохранена в '{STRUCTURE_FILE}'.")
+    print(f"Project structure saved to '{STRUCTURE_FILE}'.")
 
-    # 2. Генерация структуры изображений
-    print("Генерация структуры изображений проекта...")
+    print("Generating project images structure...")
     get_images_structure(PROJECT_ROOT, IMAGE_EXTENSIONS, IMAGES_STRUCTURE_FILE, IGNORE_DIRS)
-    print(f"Структура изображений сохранена в '{IMAGES_STRUCTURE_FILE}'.")
+    print(f"Images structure saved to '{IMAGES_STRUCTURE_FILE}'.")
 
-    # 3. Экспорт схемы базы данных
-    print("Экспорт схемы базы данных...")
+    print("Exporting database schema...")
     if DATABASE_PATH.exists():
         export_database_schema(DATABASE_PATH, DATABASE_SCHEMA_FILE)
     else:
-        print(f"База данных не найдена по пути: {DATABASE_PATH}")
+        print(f"Database not found at: {DATABASE_PATH}")
 
-    # 4. Создание списка «специфических» файлов, которые нужно гарантированно включить
     specific_files = [
-        DATABASE_SCHEMA_FILE,   # schema
-        IMAGES_STRUCTURE_FILE,  # images_structure.txt
-        STRUCTURE_FILE,         # project_structure.txt
-        DB_DESCRIPTION_FILE     # db_description.txt
+        DATABASE_SCHEMA_FILE,
+        IMAGES_STRUCTURE_FILE,
+        STRUCTURE_FILE,
+        DB_DESCRIPTION_FILE
     ]
 
-    # 5. Создание ZIP-архива всего проекта + добавление «специфических» файлов
-    print("Создание ZIP-архива проекта...")
+    print("Creating ZIP archive of the project...")
     create_zip_archive(
         root_dir=PROJECT_ROOT,
         archive_path=ARCHIVE_FILE,
@@ -1366,8 +1311,7 @@ if __name__ == '__main__':
         extra_files_to_add=specific_files
     )
 
-    # 6. Создание файла all_codes.txt со всеми .py файлами (и схемой БД в начале)
-    print("Создание файла all_codes.txt со всеми .py файлами...")
+    print("Creating all_codes.txt with all .py files...")
     ALL_CODES_FILE = STRUCTURE_DIR / 'all_codes.txt'
     create_all_codes_file(
         root_dir=PROJECT_ROOT,
@@ -1377,15 +1321,392 @@ if __name__ == '__main__':
         ignore_ext=IGNORE_EXT,
         database_schema_file=DATABASE_SCHEMA_FILE
     )
-    print(f"Файл с кодами создан: {ALL_CODES_FILE}")
+    print(f"Codes file created: {ALL_CODES_FILE}")
 
-    # 7. Финальные сообщения
-    print("\nПроцесс завершён успешно!")
-    print(f"Архив: {ARCHIVE_FILE}")
-    print(f"Файл структуры проекта: {STRUCTURE_FILE}")
-    print(f"Файл структуры изображений: {IMAGES_STRUCTURE_FILE}")
-    print(f"Схема базы данных: {DATABASE_SCHEMA_FILE}")
-    print(f"Описание базы данных: {DB_DESCRIPTION_FILE}")
-    print(f"Все коды: {ALL_CODES_FILE}")
+    print("\nProcess finished successfully!")
+    print(f"Archive: {ARCHIVE_FILE}")
+    print(f"Project structure file: {STRUCTURE_FILE}")
+    print(f"Images structure file: {IMAGES_STRUCTURE_FILE}")
+    print(f"Database schema: {DATABASE_SCHEMA_FILE}")
+    print(f"Database description: {DB_DESCRIPTION_FILE}")
+    print(f"All codes: {ALL_CODES_FILE}")
 
+---- FILE: handlers/private_chat_handlers.py ----
+# ============================= FILE: handlers/private_chat_handlers.py =============================
+import asyncio
+import os
+
+import chardet
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from loguru import logger
+
+from filters.chat_type import ChatTypeFilter
+from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
+from utils.text_to_speech import synthesize_text_to_audio_edge
+from utils.document_parsers import parse_docx, parse_fb2, parse_epub
+from utils.i18n import get_translator, get_user_lang, set_user_lang
+
+from collections import deque
+from pathlib import Path
+
+from config import AUDIO_FOLDER, LOG_FILE, ADMIN_ID, AVAILABLE_LANGUAGES, MAX_MESSAGE_LENGTH
+
+# Create a router for private chats
+private_router = Router()
+private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
+
+@private_router.message(Command('start'))
+async def cmd_start(message: Message, _: callable):
+    """
+    Sends a greeting and instructions for the bot in a private chat.
+    """
+    user_id = message.from_user.id
+    lang_code = get_user_lang(user_id)
+    translator = get_translator(lang_code)
+    __ = translator.gettext
+
+    logger.info(f"User {user_id} started the bot in a private chat.")
+    help_text = _(
+        "👋 Hi! I can help you convert text to speech in various ways.\n\n"
+        "🔹 <b>What I can do:</b>\n"
+        "- Send me a text message to synthesize speech.\n"
+        "- Send a link to a website to extract text and synthesize it.\n"
+        "- Send a file (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) to extract text and synthesize it.\n"
+        "- Add me to a group chat and use the command <b>/vv help</b> to see how to work with me in groups.\n\n"
+        "📄 <b>Available commands:</b>\n"
+        "<b>/help</b> - Show help\n"
+        "<b>/change_lang</b> - Change interface language\n\n"
+        "❓ <b>Questions or suggestions?</b>\n"
+        "Contact the bot administrator @maksenro.\n\n"
+        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+    )
+    await message.answer(help_text, parse_mode='HTML')
+
+@private_router.message(Command('change_lang'))
+async def cmd_change_lang(message: Message, _: callable):
+    """
+    Sends an inline keyboard with available languages for the user to choose from.
+    """
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=f"{lang_info['flag']} {lang_info['name']}",
+                    callback_data=f"change_lang:{lang_code}"
+                )
+            ] for lang_code, lang_info in AVAILABLE_LANGUAGES.items()
+        ]
+    )
+    logger.info(f"User {message.from_user.id} requested to change language.")
+    await message.reply(_("Please choose your language:"), reply_markup=keyboard)
+
+@private_router.callback_query(F.data.startswith("change_lang:"))
+async def process_change_lang(callback_query: CallbackQuery, _: callable):
+    """
+    Processes the language change callback. Updates the user's language in the DB.
+    """
+    lang_code = callback_query.data.split(":")[1]
+
+    if lang_code not in AVAILABLE_LANGUAGES:
+        await callback_query.answer(_("Unsupported language."), show_alert=True)
+        logger.warning(f"User {callback_query.from_user.id} tried to set unsupported language: {lang_code}")
+        return
+
+    set_user_lang(callback_query.from_user.id, lang_code)
+    translator = get_translator(lang_code)
+    __ = translator.gettext
+
+    await callback_query.answer()
+    await callback_query.message.edit_reply_markup()
+    await callback_query.message.reply(_("Language updated!"))
+    logger.info(f"User {callback_query.from_user.id} updated language to {lang_code}.")
+
+@private_router.message(Command('help'))
+async def cmd_help(message: Message, _: callable):
+    """
+    Sends a help message describing the available commands and bot features.
+    """
+    help_text = _(
+        "📖 <b>Available commands:</b>\n"
+        "/start - Begin interaction with the bot\n"
+        "/help - Show this message\n"
+        "/change_lang - Change interface language\n\n"
+        "🤖 <b>Bot capabilities:</b>\n"
+        "- Send text messages, and the bot will synthesize them using text-to-speech.\n"
+        "- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> formats, and the bot will extract and synthesize them.\n"
+        "- Send links to web pages, and the bot will extract and synthesize the text.\n\n"
+        "📂 <b>Supported formats:</b>\n"
+        "- Text messages: any text\n"
+        "- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+        "- Links: HTTP/HTTPS\n\n"
+        "⚙️ <b>Settings:</b>\n"
+        "- Use <b>/change_lang</b> command to change the interface language.\n"
+        "- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n\n"
+        "👥 <b>Use in groups:</b>\n"
+        "- Add the bot to a group.\n"
+        "- Grant it the following permissions:\n"
+        "  • Read messages\n"
+        "  • Send messages\n"
+        "  • Manage messages\n\n"
+        "- <b>Available commands in groups:</b>\n"
+        "  • /vv &lt;text&gt; - Synthesize the provided text.\n"
+        "  • /vv &lt;link&gt; - Extract text from the link and synthesize it.\n"
+        "  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n\n"
+        "❓ <b>Questions or suggestions?</b>\n"
+        "Contact the bot administrator @maksenro.\n\n"
+        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+    )
+
+    await message.answer(help_text, parse_mode='HTML')
+
+@private_router.message(Command(commands=["s", "S", "ы", "Ы"]))
+async def cmd_s(message: Message, _: callable):
+    """
+    An admin-only command to retrieve the last lines of the log file.
+    """
+    if message.from_user.id != ADMIN_ID:
+        logger.warning(f"Access denied for user {message.from_user.id} to command 's'.")
+        await message.reply(_("Access denied."))
+        return
+
+    try:
+        log_file = Path(LOG_FILE)
+        if not log_file.exists():
+            logger.error(f"Log file {LOG_FILE} does not exist.")
+            await message.reply(_("Log file does not exist."))
+            return
+
+        with log_file.open('r', encoding='utf-8') as f:
+            last_n_lines = deque(f, 15)
+        last_lines = ''.join(last_n_lines)
+
+        if not last_lines.strip():
+            await message.reply(_("No log messages."))
+            return
+
+        messages_list = []
+        current_message = ""
+        for line in last_lines.splitlines(keepends=True):
+            if len(current_message) + len(line) > MAX_MESSAGE_LENGTH:
+                messages_list.append(current_message)
+                current_message = line
+            else:
+                current_message += line
+        if current_message:
+            messages_list.append(current_message)
+
+        for msg in messages_list:
+            await message.reply(_("📝 Last log lines:\n") + msg, parse_mode='HTML')
+            await asyncio.sleep(0.1)
+        logger.info(f"Admin {message.from_user.id} retrieved last log lines.")
+
+    except Exception as e:
+        logger.error(f"Failed to read log file: {e}")
+        await message.reply(_("Failed to read log file: {error}").format(error=str(e)))
+
+@private_router.message(F.text.regexp(r'^https?://'))
+async def handle_url(message: Message, _: callable):
+    """
+    Handles a URL in a private chat. Tries static extraction,
+    then dynamic extraction, then synthesizes the extracted text.
+    """
+    url = message.text
+    try:
+        text_page = await extract_text_from_url_static(url)
+        if len(text_page) < 200:
+            text_page = await extract_text_from_url_dynamic(url)
+        if not text_page.strip():
+            await message.reply(_("Could not extract text."))
+            logger.warning(f"User {message.from_user.id} sent URL but no text extracted.")
+            return
+
+        await synthesize_text_to_audio_edge(
+            text_page,
+            str(message.from_user.id),
+            message,
+            logger,
+            _
+        )
+        logger.info(f"Processed URL from user {message.from_user.id}: {url}")
+
+    except Exception as e:
+        await message.reply(_("Failed to process URL: {error}").format(error=str(e)))
+        logger.error(f"Failed to process URL from user {message.from_user.id}: {url} | Error: {e}")
+
+@private_router.message(F.text)
+async def handle_text(message: Message, _: callable):
+    """
+    Handles any plain text sent by the user. Synthesizes the text to speech.
+    """
+    text = message.text
+    if not text.strip():
+        await message.reply(_("Empty text."))
+        logger.warning(f"User {message.from_user.id} sent empty text.")
+        return
+
+    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
+    logger.info(f"Voiced text from user {message.from_user.id}: {text}")
+
+@private_router.message(F.document)
+async def handle_file(message: Message, _: callable):
+    """
+    Handles documents in private chat. Accepts .docx, .fb2, .epub, or text with encoding detection.
+    Extracts text and synthesizes it.
+    """
+    if message.document.file_size > 20 * 1024 * 1024:
+        await message.reply(_("File is too large (max 20 MB)."))
+        logger.warning(f"User {message.from_user.id} sent a file that is too large: {message.document.file_name}")
+        return
+
+    file_extension = os.path.splitext(message.document.file_name)[1].lower()
+    local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
+
+    try:
+        # Download file
+        await message.document.download(destination_file=local_file_path)
+        logger.info(f"Downloaded file from user {message.from_user.id}: {message.document.file_name}")
+
+        # Detect encoding
+        with open(local_file_path, 'rb') as f:
+            raw_data = f.read()
+        detected = chardet.detect(raw_data)
+        encoding = detected['encoding']
+        confidence = detected['confidence']
+        logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
+
+        # Extract text
+        if file_extension == ".docx":
+            text = parse_docx(local_file_path)
+        elif file_extension == ".fb2":
+            text = parse_fb2(local_file_path)
+        elif file_extension == ".epub":
+            text = parse_epub(local_file_path)
+        else:
+            if encoding is None:
+                encoding = 'utf-8'
+            with open(local_file_path, "r", encoding=encoding, errors='replace') as txt_f:
+                text = txt_f.read()
+
+        # Remove file from local storage
+        os.remove(local_file_path)
+        logger.info(f"Processed and removed file {local_file_path}")
+
+        if not text.strip():
+            await message.reply(_("Could not extract text from the document."))
+            logger.warning(f"No text extracted from document {message.document.file_name} by user {message.from_user.id}.")
+            return
+
+        # Synthesize text
+        await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
+        logger.info(f"Synthesized document for user {message.from_user.id}: {message.document.file_name}")
+
+    except Exception as e:
+        logger.error(f"Failed to process document from user {message.from_user.id}: {e}")
+        await message.reply(_("Failed to process document: {error}").format(error=str(e)))
+        if os.path.exists(local_file_path):
+            os.remove(local_file_path)
+            logger.info(f"Removed corrupted file {local_file_path}")
+
+---- FILE: handlers/group_chat_handlers.py ----
+# ============================= FILE: handlers/group_chat_handlers.py =============================
+import os
+from aiogram import Router, F
+from aiogram.filters import Command
+from aiogram.types import Message
+from loguru import logger
+
+from filters.chat_type import ChatTypeFilter
+from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
+from utils.text_to_speech import synthesize_text_to_audio_edge
+
+from config import AVAILABLE_LANGUAGES, MAX_MESSAGE_LENGTH
+
+import chardet  # We might need this for group file handling if implemented.
+
+# Create a router for group chats
+group_router = Router()
+group_router.message.filter(ChatTypeFilter(chat_type=["group", "supergroup"]))
+
+@group_router.message(F.text.regexp(r'^\/vv\s+(help|h)\s*$'))
+async def cmd_vv_help_in_group(message: Message, _: callable):
+    """
+    Sends usage help for the /vv command in group chats.
+    """
+    help_text = _(
+        "📖 <b>Help for /vv command:</b>\n\n"
+        "🔹 <b>/vv &lt;text&gt;</b> - Synthesize the provided text.\n"
+        "🔹 <b>/vv &lt;link&gt;</b> - Extract text from the link and synthesize it.\n"
+        "🔹 <b>/vv</b> (in reply to a message) - Synthesize text from the replied-to message.\n"
+        "🔹 <b>/vv help</b> or <b>/vv h</b> - Shows this help.\n\n"
+        "📂 <b>Supported formats:</b>\n"
+        "- Text: any text\n"
+        "- Links: HTTP/HTTPS\n\n"
+        "⚙️ <b>Settings:</b>\n"
+        "- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n\n"
+        "❓ <b>Questions or suggestions?</b>\n"
+        "Contact the bot administrator @maksenro.\n\n"
+        "[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+    )
+    logger.info(f"Group {message.chat.id} requested /vv help.")
+    await message.reply(help_text, parse_mode='HTML')
+
+@group_router.message(F.text.regexp(r'^\/vv(?:\s+.+)?$'))
+async def cmd_vv_in_group(message: Message, _: callable):
+    """
+    Handles the /vv command in group chats. Either synthesizes text directly,
+    or extracts from a provided link, or uses the text from the replied-to message.
+    """
+    if message.reply_to_message:
+        text_to_speak = message.reply_to_message.text or message.reply_to_message.caption or ""
+        if not text_to_speak.strip():
+            await message.reply(_("No text to synthesize."))
+            logger.warning(f"Group {message.chat.id} sent /vv command but no text was found in the replied message.")
+            return
+    else:
+        splitted = message.text.split(' ', maxsplit=1)
+        if len(splitted) > 1:
+            text_to_speak = splitted[1].strip()
+        else:
+            await message.reply(_("Please provide text after /vv or reply to a message."))
+            logger.warning(f"Group {message.chat.id} sent /vv command without additional text or a reply.")
+            return
+
+    if text_to_speak.startswith("http://") or text_to_speak.startswith("https://"):
+        try:
+            text_page = await extract_text_from_url_static(text_to_speak)
+            if len(text_page) < 200:
+                text_page = await extract_text_from_url_dynamic(text_to_speak)
+            if not text_page.strip():
+                await message.reply(_("Could not extract text."))
+                logger.warning(f"Group {message.chat.id} provided a URL but no text was extracted.")
+                return
+
+            await synthesize_text_to_audio_edge(
+                text_page,
+                str(message.from_user.id),
+                message,
+                logger,
+                _
+            )
+            logger.info(f"Group {message.chat.id} provided URL to synthesize: {text_to_speak}")
+
+        except Exception as e:
+            await message.reply(_("Failed to process link: {error}").format(error=str(e)))
+            logger.error(f"Failed to process URL from group {message.chat.id}: {text_to_speak} | Error: {e}")
+    else:
+        if not text_to_speak.strip():
+            await message.reply(_("Empty text."))
+            logger.warning(f"Group {message.chat.id} sent /vv command with empty text.")
+            return
+
+        await synthesize_text_to_audio_edge(
+            text_to_speak,
+            str(message.from_user.id),
+            message,
+            logger,
+            _
+        )
+        logger.info(f"Group {message.chat.id} provided text to synthesize: {text_to_speak}")
 

@@ -1,11 +1,12 @@
+# ============================= FILE: utils/text_extraction.py =============================
 import asyncio
 from newspaper import Article
 from playwright.async_api import async_playwright
 
 async def extract_text_from_url_static(url: str) -> str:
     """
-    Attempt to extract text from a URL using the Newspaper library.
-    This works best for static pages without heavy JavaScript.
+    Extract text from a URL using the Newspaper library.
+    Works best for static pages.
     """
     article = Article(url)
     article.download()
@@ -15,8 +16,7 @@ async def extract_text_from_url_static(url: str) -> str:
 async def extract_text_from_url_dynamic(url: str) -> str:
     """
     Use Playwright to extract text from dynamically generated webpages.
-    If static extraction fails or returns too little content,
-    we fallback to dynamic extraction.
+    Fallback if static extraction returns too little content.
     """
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -24,7 +24,6 @@ async def extract_text_from_url_dynamic(url: str) -> str:
         try:
             await page.goto(url, timeout=60000)
 
-            # Try a set of known selectors that often contain main content
             special_selectors = [".ReadTextContainerIn"]
             selectors = special_selectors + ["article", ".content", ".main-content"]
             article_text = None
@@ -40,7 +39,6 @@ async def extract_text_from_url_dynamic(url: str) -> str:
                 except Exception:
                     continue
 
-            # If no suitable selector is found, fallback to body text extraction
             if not article_text or article_text.strip() == "":
                 article_text = await page.evaluate("document.body.innerText")
 

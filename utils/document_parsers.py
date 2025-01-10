@@ -1,4 +1,4 @@
-# utils/document_parsers.py
+# ============================= FILE: utils/document_parsers.py =============================
 from xml.etree import ElementTree
 from docx import Document
 from ebooklib import epub, ITEM_DOCUMENT
@@ -6,12 +6,9 @@ from bs4 import BeautifulSoup
 import warnings
 from loguru import logger
 
-# Новая зависимость
-
 def parse_docx(file_path: str) -> str:
     """
-    Парсинг .docx-файла в текст.
-    ...
+    Parse a .docx file into text.
     """
     try:
         doc = Document(file_path)
@@ -22,16 +19,15 @@ def parse_docx(file_path: str) -> str:
                 full_text.append(paragraph_text)
         extracted_text = "\n".join(full_text)
         words_count = len(extracted_text.split())
-        logger.info(f"[DOCX] Извлечено {words_count} слов из файла {file_path}")
+        logger.info(f"[DOCX] Extracted {words_count} words from {file_path}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге DOCX файла {file_path}: {e}")
+        logger.error(f"Error parsing DOCX {file_path}: {e}")
         return ""
 
 def parse_fb2(file_path: str) -> str:
     """
-    Парсинг .fb2-файла в текст.
-    ...
+    Parse an .fb2 file into text.
     """
     try:
         with open(file_path, 'rb') as f:
@@ -50,23 +46,22 @@ def parse_fb2(file_path: str) -> str:
                 text_chunks.append(sec_text)
         extracted_text = "\n\n".join(text_chunks).strip()
         words_count = len(extracted_text.split())
-        logger.info(f"[FB2] Извлечено {words_count} слов из файла {file_path}")
+        logger.info(f"[FB2] Extracted {words_count} words from {file_path}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге FB2 файла {file_path}: {e}")
+        logger.error(f"Error parsing FB2 {file_path}: {e}")
         return ""
 
 def parse_epub(file_path: str) -> str:
     """
-    Парсинг .epub-файла в текст.
-    ...
+    Parse an .epub file into text.
     """
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", UserWarning)
             book = epub.read_epub(file_path)
         items = list(book.get_items_of_type(ITEM_DOCUMENT))
-        logger.info(f"Количество документов в EPUB: {len(items)}")
+        logger.info(f"EPUB has {len(items)} document items")
         full_text = []
 
         for idx, item in enumerate(items, start=1):
@@ -80,14 +75,14 @@ def parse_epub(file_path: str) -> str:
                     para.get_text(separator=' ', strip=True) for para in paragraphs
                 ).strip()
 
-                logger.debug(f"[EPUB] Часть {idx}: извлечено {len(text_only.split())} слов.")
+                logger.debug(f"[EPUB] Part {idx}: extracted {len(text_only.split())} words.")
                 if text_only:
                     full_text.append(text_only)
 
         extracted_text = "\n".join(full_text)
         total_words = len(extracted_text.split())
-        logger.info(f"[EPUB] Общее количество извлечённых слов: {total_words}")
+        logger.info(f"[EPUB] Total extracted words: {total_words}")
         return extracted_text
     except Exception as e:
-        logger.error(f"Ошибка при парсинге EPUB файла {file_path}: {e}")
+        logger.error(f"Error parsing EPUB {file_path}: {e}")
         return ""
