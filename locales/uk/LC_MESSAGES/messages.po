@@ -2,9 +2,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-10 17:21+0300\n"
+"POT-Creation-Date: 2025-01-10 20:35+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator:   FULL NAME <EMAIL@ADDRESS>\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Ukrainian <uk@li.org>\n"
 "Language: uk\n"
 "MIME-Version: 1.0\n"
@@ -14,14 +14,12 @@ msgstr ""
 #: middlewares/concurrency_limit.py:51
 msgid "You already have an active task. Please wait for it to finish."
 msgstr ""
-"У вас уже є активне завдання. Будь ласка, зачекайте, поки воно завершиться."
+"У вас вже є активне завдання. Будь ласка, зачекайте, поки воно завершиться."
 
 #: middlewares/rate_limit.py:42
 #, python-brace-format
 msgid "Too many requests, please try again later (limit: {rate_limit} s)."
-msgstr ""
-"Занадто багато запитів, будь ласка, спробуйте пізніше (ліміт: {rate_limit} "
-"с)."
+msgstr "Занадто багато запитів, спробуйте пізніше (ліміт: {rate_limit} с)."
 
 #: utils/text_analysis.py:40
 #, python-brace-format
@@ -31,7 +29,7 @@ msgstr "{minutes} хв "
 #: utils/text_analysis.py:42
 #, python-brace-format
 msgid "{seconds} sec"
-msgstr "{seconds} с"
+msgstr "{seconds} сек"
 
 #: utils/text_analysis.py:52
 msgid "Very easy to read"
@@ -43,15 +41,15 @@ msgstr "Легко читати"
 
 #: utils/text_analysis.py:56
 msgid "Moderately difficult"
-msgstr "Помірно складно читати"
+msgstr "Помірно складно"
 
 #: utils/text_analysis.py:58
 msgid "Hard to read"
-msgstr "Складно читати"
+msgstr "Важко читати"
 
 #: utils/text_analysis.py:60
 msgid "Very hard to read"
-msgstr "Дуже складно читати"
+msgstr "Дуже важко читати"
 
 #: utils/text_analysis.py:67
 #, python-brace-format
@@ -67,14 +65,14 @@ msgid ""
 "\n"
 "- <b>Key phrases</b>: {key_phrases}\n"
 msgstr ""
-"📝 Ваш текст містить {word_count} слів та {char_count} символів.\n"
-"⏳ Орієнтовний час озвучування: {estimated_time_str}.\n"
+"📝 Ваш текст містить {word_count} слів і {char_count} символів.\n"
+"⏳ Приблизний час озвучування: {estimated_time_str}.\n"
 "\n"
 "📊 <b>Аналіз тексту</b>:\n"
 "\n"
 "- <b>Топ-5 слів</b>: {top_words}\n"
 "- <b>Рівень читання</b>: {reading_level} (Flesch: {reading_ease:.2f})\n"
-"- <b>Запропонований рівень освіти</b>: {grade_level}\n"
+"- <b>Рекомендований рівень освіти</b>: {grade_level}\n"
 "\n"
 "- <b>Ключові фрази</b>: {key_phrases}\n"
 
@@ -83,52 +81,51 @@ msgstr ""
 msgid "{word} ({count})"
 msgstr "{word} ({count})"
 
-#: utils/text_to_speech.py:82
+#: utils/text_to_speech.py:59
 msgid "Empty text for synthesis."
 msgstr "Порожній текст для озвучення."
 
-#: utils/text_to_speech.py:83
+#: utils/text_to_speech.py:60
 msgid "Could not synthesize: empty text."
-msgstr "Не вдалося озвучити: порожній текст."
+msgstr "Неможливо озвучити: текст порожній."
 
-#: utils/text_to_speech.py:87
+#: utils/text_to_speech.py:65
 #, fuzzy, python-brace-format
 msgid "The text is too large: {len_text} characters"
 msgstr "Текст занадто великий: {len_text} символів"
 
-#: utils/text_to_speech.py:88
+#: utils/text_to_speech.py:66
 #, fuzzy
 msgid ""
 "The text is too large. Contact @maksenro if you want to increase limits!"
 msgstr ""
-"Текст занадто великий для озвучення. Зверніться до @maksenro, якщо ви хочете "
-"збільшити ліміти!"
+"Текст надто великий. Зверніться до @maksenro, якщо хочете збільшити ліміт!"
 
-#: utils/text_to_speech.py:91
+#: utils/text_to_speech.py:69
 #, python-brace-format
 msgid "@{username}, length - {len_text}: {preview}..."
 msgstr "@{username}, довжина - {len_text}: {preview}..."
 
-#: utils/text_to_speech.py:101 utils/text_to_speech.py:103
+#: utils/text_to_speech.py:80 utils/text_to_speech.py:82
 msgid "Could not detect language. Using default voice."
-msgstr "Не вдалося визначити мову. Використовується голос за замовчуванням."
+msgstr "Неможливо визначити мову. Використовується голос за замовчуванням."
 
-#: utils/text_to_speech.py:106
+#: utils/text_to_speech.py:85
 #, python-brace-format
 msgid "Detected language: {lang}. Using voice: {voice}"
-msgstr "Виявлена мова: {lang}. Використовується голос: {voice}"
+msgstr "Виявлено мову: {lang}. Використовується голос: {voice}"
 
-#: utils/text_to_speech.py:129
+#: utils/text_to_speech.py:114
 #, python-brace-format
 msgid "Part {i}/{total_parts} synthesized in {seconds} sec."
 msgstr "Частина {i}/{total_parts} озвучена за {seconds} сек."
 
-#: utils/text_to_speech.py:140
+#: utils/text_to_speech.py:123
 #, fuzzy, python-brace-format
 msgid "Failed to synthesize part {i}: {error}"
 msgstr "Не вдалося озвучити частину {i}: {error}"
 
-#: handlers/private_chat_handlers.py:38
+#: handlers/private_chat_handlers.py:53
 msgid ""
 "👋 Hi! I can help you convert text to speech in various ways.\n"
 "\n"
@@ -150,40 +147,161 @@ msgid ""
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
-"👋 Привіт! Я можу допомогти тобі конвертувати текст у мову різними "
-"способами.\n"
+"👋 Привіт! Я допоможу перетворити текст на мовлення різними способами.\n"
 "\n"
-"🔹 <b>Що я можу зробити:</b>\n"
-"- Відправ мені текстове повідомлення для озвучення.\n"
-"- Відправ посилання на сайт для витягнення та озвучення тексту.\n"
-"- Відправ файл (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) "
-"для витягнення та озвучення тексту.\n"
-"- Додай мене до групового чату та використай команду <b>/vv help</b>, щоб "
-"дізнатися, як працювати зі мною в групах.\n"
+"🔹 <b>Мої можливості:</b>\n"
+"- Надішліть мені текст, і я його озвучу.\n"
+"- Надішліть посилання на сайт — витягну текст і озвучу.\n"
+"- Надішліть файл (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) "
+"— я дістану текст і озвучу.\n"
+"- Додайте мене в груповий чат і скористайтеся командою <b>/vv help</b>, щоб "
+"дізнатися, як зі мною працювати.\n"
 "\n"
 "📄 <b>Доступні команди:</b>\n"
 "<b>/help</b> - Показати допомогу\n"
 "<b>/change_lang</b> - Змінити мову інтерфейсу\n"
 "\n"
-"❓ <b>Питання або пропозиції?</b>\n"
-"Зв'яжись з адміністратором бота @maksenro.\n"
+"❓ <b>Запитання чи пропозиції?</b>\n"
+"Звертайтеся до адміністратора бота @maksenro.\n"
 "\n"
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Підтримати</a> | <a "
 "href=\"https://t.me/MKprodaction\">Група</a> ]"
 
-#: handlers/private_chat_handlers.py:69
-msgid "Please choose your language:"
-msgstr "Будь ласка, оберіть вашу мову:"
+#: handlers/private_chat_handlers.py:75
+#, fuzzy
+msgid ""
+"📖 <b>Available commands:</b>\n"
+"/start - Begin interaction with the bot\n"
+"/help - Show this message\n"
+"/change_lang - Change interface language\n"
+"\n"
+"🤖 <b>Bot capabilities:</b>\n"
+"- Send text messages, and the bot will synthesize them using text-to-"
+"speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</"
+"code> formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the "
+"text.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text messages: any text\n"
+"- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- Use <b>/change_lang</b> command to change the interface language.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, "
+"Chinese.\n"
+"\n"
+"👥 <b>Use in groups:</b>\n"
+"- Add the bot to a group.\n"
+"- Grant it the following permissions:\n"
+"  • Read messages\n"
+"  • Send messages\n"
+"  • Manage messages\n"
+"\n"
+"- <b>Available commands in groups:</b>\n"
+"  • /vv <text> - Synthesize the provided text.\n"
+"  • /vv <link> - Extract text from the link and synthesize it.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to "
+"message.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+"📖 <b>Доступні команди:</b>\n"
+"/start - Почати роботу з ботом\n"
+"/help - Показати це повідомлення\n"
+"/change_lang - Змінити мову інтерфейсу\n"
+"\n"
+"🤖 <b>Можливості бота:</b>\n"
+"- Надішліть текст — бот озвучить його.\n"
+"- Надішліть документи (<code>.docx</code>, <code>.fb2</code>, <code>.epub</"
+"code>) — бот витягне та озвучить текст.\n"
+"- Надішліть посилання на сторінку — бот витягне текст і озвучить.\n"
+"\n"
+"📂 <b>Підтримувані формати:</b>\n"
+"- Текстові повідомлення\n"
+"- Документи: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Посилання: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Налаштування:</b>\n"
+"- Використовуйте /change_lang, щоб змінити мову інтерфейсу.\n"
+"- Бот підтримує англійську, російську, українську, китайську.\n"
+"\n"
+"👥 <b>Використання в групах:</b>\n"
+"- Додайте бота до групи.\n"
+"- Надайте йому дозволи:\n"
+"  • Читати повідомлення\n"
+"  • Надсилати повідомлення\n"
+"  • Керувати повідомленнями\n"
+"\n"
+"- <b>Доступні команди в групах:</b>\n"
+"  • /vv &lt;text&gt; - Озвучити вказаний текст.\n"
+"  • /vv &lt;link&gt; - Витягти текст за посиланням і озвучити.\n"
+"  • /vv (у відповідь на повідомлення) - Озвучити текст з повідомлення, на "
+"яке відповіли.\n"
+"\n"
+"❓ <b>Питання чи пропозиції?</b>\n"
+"Зверніться до адміністратора @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Підтримати</a> | <a "
+"href=\"https://t.me/MKprodaction\">Група</a> ]"
 
-#: handlers/private_chat_handlers.py:79
+#: handlers/private_chat_handlers.py:114
+msgid "Set chunk size"
+msgstr "Налаштувати розмір фрагменту"
+
+#: handlers/private_chat_handlers.py:115
+msgid "Set TTS speed"
+msgstr "Налаштувати швидкість TTS"
+
+#: handlers/private_chat_handlers.py:117
+msgid "Choose a setting to update:"
+msgstr "Оберіть параметр для зміни:"
+
+#: handlers/private_chat_handlers.py:126
+msgid "Please enter the chunk size (5,000 - 80,000):"
+msgstr "Введіть розмір фрагменту (5 000 - 80 000):"
+
+#: handlers/private_chat_handlers.py:140
+#, python-brace-format
+msgid "Chunk size updated to: {size}"
+msgstr "Розмір фрагменту оновлено: {size}"
+
+#: handlers/private_chat_handlers.py:143
+msgid "Value out of range (5,000–80,000). Please try again."
+msgstr "Значення поза межами (5 000–80 000). Спробуйте ще раз."
+
+#: handlers/private_chat_handlers.py:145
+msgid "Invalid number. Please try again."
+msgstr "Неправильне число. Спробуйте знову."
+
+#: handlers/private_chat_handlers.py:160
+msgid "Choose desired TTS speed:"
+msgstr "Оберіть бажану швидкість TTS:"
+
+#: handlers/private_chat_handlers.py:172
+#, python-brace-format
+msgid "Speed updated to: {spd}"
+msgstr "Швидкість змінено на: {spd}"
+
+#: handlers/private_chat_handlers.py:193
+msgid "Please choose your language:"
+msgstr "Будь ласка, оберіть мову:"
+
+#: handlers/private_chat_handlers.py:200
 msgid "Unsupported language."
 msgstr "Непідтримувана мова."
 
-#: handlers/private_chat_handlers.py:89
+#: handlers/private_chat_handlers.py:210
 msgid "Language updated!"
-msgstr "Мова оновлена!"
+msgstr "Мову оновлено!"
 
-#: handlers/private_chat_handlers.py:98
+#: handlers/private_chat_handlers.py:220
 msgid ""
 "📖 <b>Available commands:</b>\n"
 "/start - Begin interaction with the bot\n"
@@ -228,93 +346,91 @@ msgid ""
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
 "📖 <b>Доступні команди:</b>\n"
-"/start - Почати взаємодію з ботом\n"
+"/start - Почати роботу з ботом\n"
 "/help - Показати це повідомлення\n"
-"/change_lang - Змінити мову інтерфейсу\n"
+"/change_lang - Змінити мову\n"
 "\n"
 "🤖 <b>Можливості бота:</b>\n"
-"- Відправляйте текстові повідомлення, і бот озвучить їх за допомогою синтезу "
-"мови.\n"
-"- Відправляйте документи в форматах <code>.docx</code>, <code>.fb2</code>, "
-"<code>.epub</code>, і бот витягне та озвучить їх.\n"
-"- Відправляйте посилання на веб-сторінки, і бот витягне та озвучить текст.\n"
+"- Надішліть текст для синтезу.\n"
+"- Надішліть <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> — бот "
+"отримає текст і озвучить.\n"
+"- Надішліть посилання на веб-сторінку — бот витягне й озвучить текст.\n"
 "\n"
 "📂 <b>Підтримувані формати:</b>\n"
-"- Текстові повідомлення: будь-який текст\n"
+"- Текстові повідомлення\n"
 "- Документи: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
 "- Посилання: HTTP/HTTPS\n"
 "\n"
 "⚙️ <b>Налаштування:</b>\n"
-"- Використовуйте команду <b>/change_lang</b>, щоб змінити мову інтерфейсу.\n"
-"- Бот підтримує кілька мов: англійську, російську, українську, китайську.\n"
+"- Використовуйте /change_lang, щоб змінити мову.\n"
+"- Бот підтримує англійську, російську, українську, китайську.\n"
 "\n"
 "👥 <b>Використання в групах:</b>\n"
 "- Додайте бота до групи.\n"
-"- Надішліть йому такі дозволи:\n"
+"- Дозвольте йому:\n"
 "  • Читати повідомлення\n"
-"  • Відправляти повідомлення\n"
-"  • Управляти повідомленнями\n"
+"  • Надсилати повідомлення\n"
+"  • Керувати повідомленнями\n"
 "\n"
-"- <b>Доступні команди в групах:</b>\n"
-"  • /vv &lt;text&gt; - Озвучити наданий текст.\n"
-"  • /vv &lt;link&gt; - Витягти текст з посилання та озвучити його.\n"
-"  • /vv (у відповідь на повідомлення) - Озвучити текст з повідомлення, на "
-"яке ви відповіли цією командою.\n"
+"- <b>Команди у групах:</b>\n"
+"  • /vv &lt;text&gt; - Озвучити текст.\n"
+"  • /vv &lt;link&gt; - Витягти текст за посиланням і озвучити.\n"
+"  • /vv (у відповідь) - Озвучити текст з повідомлення.\n"
 "\n"
 "❓ <b>Питання або пропозиції?</b>\n"
-"Зв'яжіться з адміністратором бота @maksenro.\n"
+"Зверніться до адміністратора @maksenro.\n"
 "\n"
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Підтримати</a> | <a "
 "href=\"https://t.me/MKprodaction\">Група</a> ]"
 
-#: handlers/private_chat_handlers.py:137
+#: handlers/private_chat_handlers.py:259
 msgid "Access denied."
-msgstr "Access denied."
+msgstr "Доступ заборонено."
 
-#: handlers/private_chat_handlers.py:144
+#: handlers/private_chat_handlers.py:266
 msgid "Log file does not exist."
-msgstr "Log file does not exist."
+msgstr "Файл журналу не існує."
 
-#: handlers/private_chat_handlers.py:152
+#: handlers/private_chat_handlers.py:274
 msgid "No log messages."
-msgstr "No log messages."
+msgstr "Немає записів у журналі."
 
-#: handlers/private_chat_handlers.py:167
+#: handlers/private_chat_handlers.py:289
 msgid "📝 Last log lines:\n"
-msgstr "📝 Last log lines:\n"
+msgstr "📝 Останні рядки журналу:\n"
 
-#: handlers/private_chat_handlers.py:173
+#: handlers/private_chat_handlers.py:295
 #, python-brace-format
 msgid "Failed to read log file: {error}"
-msgstr "Failed to read log file: {error}"
+msgstr "Помилка читання журналу: {error}"
 
-#: handlers/private_chat_handlers.py:187 handlers/group_chat_handlers.py:70
+#: handlers/private_chat_handlers.py:309 handlers/group_chat_handlers.py:70
 #, fuzzy
 msgid "Could not extract text."
-msgstr "Не вдалося озвучити: порожній текст."
+msgstr "Неможливо озвучити: текст порожній."
 
-#: handlers/private_chat_handlers.py:201
+#: handlers/private_chat_handlers.py:323
 #, fuzzy, python-brace-format
 msgid "Failed to process URL: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "Не вдалося обробити посилання: {error}"
 
-#: handlers/private_chat_handlers.py:211 handlers/group_chat_handlers.py:88
+#: handlers/private_chat_handlers.py:333 handlers/group_chat_handlers.py:88
 #, fuzzy
 msgid "Empty text."
-msgstr "Порожній текст для озвучення."
+msgstr "Порожній текст для озвучування."
 
-#: handlers/private_chat_handlers.py:225
+#: handlers/private_chat_handlers.py:347
 msgid "File is too large (max 20 MB)."
-msgstr ""
+msgstr "Файл занадто великий (максимум 20 МБ)."
 
-#: handlers/private_chat_handlers.py:263
+#: handlers/private_chat_handlers.py:385
 msgid "Could not extract text from the document."
-msgstr ""
+msgstr "Не вдалося витягти текст із документа."
 
-#: handlers/private_chat_handlers.py:273
+#: handlers/private_chat_handlers.py:395
 #, fuzzy, python-brace-format
 msgid "Failed to process document: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "Не вдалося обробити посилання: {error}"
 
 #: handlers/group_chat_handlers.py:26
 msgid ""
@@ -340,36 +456,37 @@ msgid ""
 "[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/mkprod\">Support</"
 "a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
-"📖 <b>Допомога по команді /vv:</b>\n"
+"📖 <b>Довідка по команді /vv:</b>\n"
 "\n"
-"🔹 <b>/vv &lt;text&gt;</b> - Озвучити наданий текст.\n"
-"🔹 <b>/vv &lt;link&gt;</b> - Витягти текст з посилання та озвучити його.\n"
-"🔹 <b>/vv</b> (у відповідь на повідомлення) - Озвучити текст з повідомлення, "
-"на яке ви відповіли цією командою.\n"
-"🔹 <b>/vv help</b> або <b>/vv h</b> - Показати цю допомогу.\n"
+"🔹 <b>/vv &lt;text&gt;</b> - Озвучити вказаний текст.\n"
+"🔹 <b>/vv &lt;link&gt;</b> - Витягти текст за посиланням і озвучити.\n"
+"🔹 <b>/vv</b> (у відповідь на повідомлення) - Озвучити текст із "
+"повідомлення.\n"
+"🔹 <b>/vv help</b> або <b>/vv h</b> - Показати цю довідку.\n"
 "\n"
 "📂 <b>Підтримувані формати:</b>\n"
-"- Текст: будь-який текст\n"
+"- Текст: будь-який\n"
 "- Посилання: HTTP/HTTPS\n"
 "\n"
 "⚙️ <b>Налаштування:</b>\n"
-"- Бот підтримує кілька мов: англійську, російську, українську, китайську.\n"
+"- Бот підтримує англійську, російську, українську, китайську.\n"
 "\n"
-"❓ <b>Питання або пропозиції?</b>\n"
-"Зв'яжіться з адміністратором бота @maksenro.\n"
+"❓ <b>Запитання чи пропозиції?</b>\n"
+"Зверніться до адміністратора @maksenro.\n"
 "\n"
 "[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/"
 "mkprod\">Підтримати</a> | <a href=\"https://t.me/MKprodaction\">Група</a> ]"
 
 #: handlers/group_chat_handlers.py:52
 msgid "No text to synthesize."
-msgstr "No text to synthesize."
+msgstr "Немає тексту для озвучування."
 
 #: handlers/group_chat_handlers.py:60
 msgid "Please provide text after /vv or reply to a message."
-msgstr "Please provide text after /vv or reply to a message."
+msgstr ""
+"Будь ласка, вкажіть текст після /vv або дайте відповідь на повідомлення."
 
 #: handlers/group_chat_handlers.py:84
 #, fuzzy, python-brace-format
 msgid "Failed to process link: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "Не вдалося обробити посилання: {error}"

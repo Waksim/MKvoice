@@ -2,7 +2,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-10 17:21+0300\n"
+"POT-Creation-Date: 2025-01-10 20:22+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator:   FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: English <en@li.org>\n"
@@ -80,52 +80,49 @@ msgstr ""
 msgid "{word} ({count})"
 msgstr "{word} ({count})"
 
-#: utils/text_to_speech.py:82
+#: utils/text_to_speech.py:59
 msgid "Empty text for synthesis."
 msgstr "Empty text for synthesis."
 
-#: utils/text_to_speech.py:83
+#: utils/text_to_speech.py:60
 msgid "Could not synthesize: empty text."
 msgstr "Could not synthesize: empty text."
 
-#: utils/text_to_speech.py:87
+#: utils/text_to_speech.py:65
 #, fuzzy, python-brace-format
 msgid "The text is too large: {len_text} characters"
 msgstr "The text is too large: {len_text} characters"
 
-#: utils/text_to_speech.py:88
+#: utils/text_to_speech.py:66
 #, fuzzy
-msgid ""
-"The text is too large. Contact @maksenro if you want to increase limits!"
-msgstr ""
-"The text for voicing is too large. Contact @maksenro if you want to increase "
-"limits!"
+msgid "The text is too large. Contact @maksenro if you want to increase limits!"
+msgstr "The text for voicing is too large. Contact @maksenro if you want to increase limits!"
 
-#: utils/text_to_speech.py:91
+#: utils/text_to_speech.py:69
 #, python-brace-format
 msgid "@{username}, length - {len_text}: {preview}..."
 msgstr "@{username}, length - {len_text}: {preview}..."
 
-#: utils/text_to_speech.py:101 utils/text_to_speech.py:103
+#: utils/text_to_speech.py:80 utils/text_to_speech.py:82
 msgid "Could not detect language. Using default voice."
 msgstr "Could not detect language. Using default voice."
 
-#: utils/text_to_speech.py:106
+#: utils/text_to_speech.py:85
 #, python-brace-format
 msgid "Detected language: {lang}. Using voice: {voice}"
 msgstr "Detected language: {lang}. Using voice: {voice}"
 
-#: utils/text_to_speech.py:129
+#: utils/text_to_speech.py:114
 #, python-brace-format
 msgid "Part {i}/{total_parts} synthesized in {seconds} sec."
 msgstr "Part {i}/{total_parts} synthesized in {seconds} sec."
 
-#: utils/text_to_speech.py:140
+#: utils/text_to_speech.py:123
 #, fuzzy, python-brace-format
 msgid "Failed to synthesize part {i}: {error}"
 msgstr "Failed to synthesize part {i}: {error}"
 
-#: handlers/private_chat_handlers.py:38
+#: handlers/private_chat_handlers.py:53
 msgid ""
 "👋 Hi! I can help you convert text to speech in various ways.\n"
 "\n"
@@ -167,19 +164,140 @@ msgstr ""
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 
-#: handlers/private_chat_handlers.py:69
+#: handlers/private_chat_handlers.py:75
+#, fuzzy
+msgid ""
+"📖 <b>Available commands:</b>\n"
+"/start - Begin interaction with the bot\n"
+"/help - Show this message\n"
+"/change_lang - Change interface language\n"
+"\n"
+"🤖 <b>Bot capabilities:</b>\n"
+"- Send text messages, and the bot will synthesize them using text-to-"
+"speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</"
+"code> formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the "
+"text.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text messages: any text\n"
+"- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- Use <b>/change_lang</b> command to change the interface language.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, "
+"Chinese.\n"
+"\n"
+"👥 <b>Use in groups:</b>\n"
+"- Add the bot to a group.\n"
+"- Grant it the following permissions:\n"
+"  • Read messages\n"
+"  • Send messages\n"
+"  • Manage messages\n"
+"\n"
+"- <b>Available commands in groups:</b>\n"
+"  • /vv <text> - Synthesize the provided text.\n"
+"  • /vv <link> - Extract text from the link and synthesize it.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to "
+"message.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+"📖 <b>Available commands:</b>\n"
+"/start - Begin interaction with the bot\n"
+"/help - Show this message\n"
+"/change_lang - Change interface language\n"
+"\n"
+"🤖 <b>Bot capabilities:</b>\n"
+"- Send text messages, and the bot will synthesize them using text-to-speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> "
+"formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the text.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text messages: any text\n"
+"- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- Use <b>/change_lang</b> command to change the interface language.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n"
+"\n"
+"👥 <b>Use in groups:</b>\n"
+"- Add the bot to a group.\n"
+"- Grant it the following permissions:\n"
+"  • Read messages\n"
+"  • Send messages\n"
+"  • Manage messages\n"
+"\n"
+"- <b>Available commands in groups:</b>\n"
+"  • /vv &lt;text&gt; - Synthesize the provided text.\n"
+"  • /vv &lt;link&gt; - Extract text from the link and synthesize it.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+
+#: handlers/private_chat_handlers.py:114
+msgid "Set chunk size"
+msgstr "Set chunk size"
+
+#: handlers/private_chat_handlers.py:115
+msgid "Set TTS speed"
+msgstr "Set TTS speed"
+
+#: handlers/private_chat_handlers.py:117
+msgid "Choose a setting to update:"
+msgstr "Choose a setting to update:"
+
+#: handlers/private_chat_handlers.py:126
+msgid "Please enter the chunk size (5,000 - 80,000):"
+msgstr "Please enter the chunk size (5,000 - 80,000):"
+
+#: handlers/private_chat_handlers.py:140
+#, python-brace-format
+msgid "Chunk size updated to: {size}"
+msgstr "Chunk size updated to: {size}"
+
+#: handlers/private_chat_handlers.py:143
+msgid "Value out of range (5,000–80,000). Please try again."
+msgstr "Value out of range (5,000–80,000). Please try again."
+
+#: handlers/private_chat_handlers.py:145
+msgid "Invalid number. Please try again."
+msgstr "Invalid number. Please try again."
+
+#: handlers/private_chat_handlers.py:160
+msgid "Choose desired TTS speed:"
+msgstr "Choose desired TTS speed:"
+
+#: handlers/private_chat_handlers.py:172
+#, python-brace-format
+msgid "Speed updated to: {spd}"
+msgstr "Speed updated to: {spd}"
+
+#: handlers/private_chat_handlers.py:193
 msgid "Please choose your language:"
 msgstr "Please choose your language:"
 
-#: handlers/private_chat_handlers.py:79
+#: handlers/private_chat_handlers.py:200
 msgid "Unsupported language."
 msgstr "Unsupported language."
 
-#: handlers/private_chat_handlers.py:89
+#: handlers/private_chat_handlers.py:210
 msgid "Language updated!"
 msgstr "Language updated!"
 
-#: handlers/private_chat_handlers.py:98
+#: handlers/private_chat_handlers.py:220
 msgid ""
 "📖 <b>Available commands:</b>\n"
 "/start - Begin interaction with the bot\n"
@@ -229,12 +347,10 @@ msgstr ""
 "/change_lang - Change interface language\n"
 "\n"
 "🤖 <b>Bot capabilities:</b>\n"
-"- Send text messages, and the bot will synthesize them using text-to-"
-"speech.\n"
-"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</"
-"code> formats, and the bot will extract and synthesize them.\n"
-"- Send links to web pages, and the bot will extract and synthesize the "
-"text.\n"
+"- Send text messages, and the bot will synthesize them using text-to-speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> "
+"formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the text.\n"
 "\n"
 "📂 <b>Supported formats:</b>\n"
 "- Text messages: any text\n"
@@ -243,8 +359,7 @@ msgstr ""
 "\n"
 "⚙️ <b>Settings:</b>\n"
 "- Use <b>/change_lang</b> command to change the interface language.\n"
-"- The bot supports multiple languages: English, Russian, Ukrainian, "
-"Chinese.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n"
 "\n"
 "👥 <b>Use in groups:</b>\n"
 "- Add the bot to a group.\n"
@@ -256,8 +371,7 @@ msgstr ""
 "- <b>Available commands in groups:</b>\n"
 "  • /vv &lt;text&gt; - Synthesize the provided text.\n"
 "  • /vv &lt;link&gt; - Extract text from the link and synthesize it.\n"
-"  • /vv (in reply to a message) - Synthesize text from the replied-to "
-"message.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n"
 "\n"
 "❓ <b>Questions or suggestions?</b>\n"
 "Contact the bot administrator @maksenro.\n"
@@ -265,51 +379,51 @@ msgstr ""
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 
-#: handlers/private_chat_handlers.py:137
+#: handlers/private_chat_handlers.py:259
 msgid "Access denied."
 msgstr "Access denied."
 
-#: handlers/private_chat_handlers.py:144
+#: handlers/private_chat_handlers.py:266
 msgid "Log file does not exist."
 msgstr "Log file does not exist."
 
-#: handlers/private_chat_handlers.py:152
+#: handlers/private_chat_handlers.py:274
 msgid "No log messages."
 msgstr "No log messages."
 
-#: handlers/private_chat_handlers.py:167
+#: handlers/private_chat_handlers.py:289
 msgid "📝 Last log lines:\n"
 msgstr "📝 Last log lines:\n"
 
-#: handlers/private_chat_handlers.py:173
+#: handlers/private_chat_handlers.py:295
 #, python-brace-format
 msgid "Failed to read log file: {error}"
 msgstr "Failed to read log file: {error}"
 
-#: handlers/private_chat_handlers.py:187 handlers/group_chat_handlers.py:70
+#: handlers/private_chat_handlers.py:309 handlers/group_chat_handlers.py:70
 #, fuzzy
 msgid "Could not extract text."
 msgstr "Could not synthesize: empty text."
 
-#: handlers/private_chat_handlers.py:201
+#: handlers/private_chat_handlers.py:323
 #, fuzzy, python-brace-format
 msgid "Failed to process URL: {error}"
 msgstr "Failed to process link: {error}"
 
-#: handlers/private_chat_handlers.py:211 handlers/group_chat_handlers.py:88
+#: handlers/private_chat_handlers.py:333 handlers/group_chat_handlers.py:88
 #, fuzzy
 msgid "Empty text."
 msgstr "Empty text for synthesis."
 
-#: handlers/private_chat_handlers.py:225
+#: handlers/private_chat_handlers.py:347
 msgid "File is too large (max 20 MB)."
-msgstr ""
+msgstr "File is too large (max 20 MB)."
 
-#: handlers/private_chat_handlers.py:263
+#: handlers/private_chat_handlers.py:385
 msgid "Could not extract text from the document."
-msgstr ""
+msgstr "Could not extract text from the document."
 
-#: handlers/private_chat_handlers.py:273
+#: handlers/private_chat_handlers.py:395
 #, fuzzy, python-brace-format
 msgid "Failed to process document: {error}"
 msgstr "Failed to process link: {error}"
@@ -351,8 +465,7 @@ msgstr ""
 "- Links: HTTP/HTTPS\n"
 "\n"
 "⚙️ <b>Settings:</b>\n"
-"- The bot supports multiple languages: English, Russian, Ukrainian, "
-"Chinese.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n"
 "\n"
 "❓ <b>Questions or suggestions?</b>\n"
 "Contact the bot administrator @maksenro.\n"
