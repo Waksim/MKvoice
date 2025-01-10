@@ -1,5 +1,4 @@
-# config.py
-
+# ============================= FILE: config.py =============================
 import os
 from dotenv import load_dotenv
 
@@ -18,6 +17,16 @@ LOG_FILE = os.path.join(BASE_DIR, os.getenv("LOG_FILE", "bot_log.log"))
 # Directory to store audio files, defaults to 'audio' if not specified
 AUDIO_FOLDER = os.getenv("AUDIO_FOLDER", "audio")
 
-# Administrator ID, retrieved from environment variables and converted to integer
-# Defaults to 0 if not specified
+# Administrator ID retrieved from environment variables, converted to integer (default 0)
 ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+
+# Dictionary of available languages with corresponding flags
+AVAILABLE_LANGUAGES = {
+    'en': {'name': 'English', 'flag': '🇺🇸'},
+    'ru': {'name': 'Russian', 'flag': '🇷🇺'},
+    'uk': {'name': 'Ukrainian', 'flag': '🇺🇦'},
+    'zh': {'name': 'Chinese', 'flag': '🇨🇳'},
+}
+
+# Maximum length of a message, used to split long logs or text
+MAX_MESSAGE_LENGTH = 4000
