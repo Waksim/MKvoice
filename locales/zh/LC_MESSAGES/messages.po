@@ -2,9 +2,9 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2025-01-10 17:21+0300\n"
+"POT-Creation-Date: 2025-01-10 20:35+0300\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
-"Last-Translator:   FULL NAME <EMAIL@ADDRESS>\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: Chinese <zh@li.org>\n"
 "Language: zh\n"
 "MIME-Version: 1.0\n"
@@ -13,7 +13,7 @@ msgstr ""
 
 #: middlewares/concurrency_limit.py:51
 msgid "You already have an active task. Please wait for it to finish."
-msgstr "您已经有一个活跃的任务。请等待任务完成。"
+msgstr "您已有一个正在进行的任务。请等待完成后再试。"
 
 #: middlewares/rate_limit.py:42
 #, python-brace-format
@@ -40,15 +40,15 @@ msgstr "容易阅读"
 
 #: utils/text_analysis.py:56
 msgid "Moderately difficult"
-msgstr "中等难度阅读"
+msgstr "中等难度"
 
 #: utils/text_analysis.py:58
 msgid "Hard to read"
-msgstr "难以阅读"
+msgstr "比较难阅读"
 
 #: utils/text_analysis.py:60
 msgid "Very hard to read"
-msgstr "非常难以阅读"
+msgstr "非常难阅读"
 
 #: utils/text_analysis.py:67
 #, python-brace-format
@@ -64,66 +64,66 @@ msgid ""
 "\n"
 "- <b>Key phrases</b>: {key_phrases}\n"
 msgstr ""
-"📝 您的文本包含 {word_count} 个单词和 {char_count} 个字符。\n"
-"⏳ 预计朗读时间：{estimated_time_str}。\n"
+"📝 您的文本包含 {word_count} 个单词，{char_count} 个字符。\n"
+"⏳ 预估朗读时间：{estimated_time_str}。\n"
 "\n"
 "📊 <b>文本分析</b>：\n"
 "\n"
-"- <b>前5个单词</b>：{top_words}\n"
-"- <b>阅读水平</b>：{reading_level} (Flesch: {reading_ease:.2f})\n"
+"- <b>前 5 个词</b>：{top_words}\n"
+"- <b>阅读难度</b>：{reading_level} (Flesch: {reading_ease:.2f})\n"
 "- <b>建议教育水平</b>：{grade_level}\n"
 "\n"
-"- <b>关键短语</b>：{key_phrases}\n"
+"- <b>关键词</b>：{key_phrases}\n"
 
 #: utils/text_analysis.py:78
 #, python-brace-format
 msgid "{word} ({count})"
-msgstr "{word} ({count})"
+msgstr "{word} （{count}）"
 
-#: utils/text_to_speech.py:82
+#: utils/text_to_speech.py:59
 msgid "Empty text for synthesis."
-msgstr "合成文本为空。"
+msgstr "没有可合成的文本。"
 
-#: utils/text_to_speech.py:83
+#: utils/text_to_speech.py:60
 msgid "Could not synthesize: empty text."
 msgstr "无法合成：文本为空。"
 
-#: utils/text_to_speech.py:87
+#: utils/text_to_speech.py:65
 #, fuzzy, python-brace-format
 msgid "The text is too large: {len_text} characters"
 msgstr "文本过大：{len_text} 个字符"
 
-#: utils/text_to_speech.py:88
+#: utils/text_to_speech.py:66
 #, fuzzy
 msgid ""
 "The text is too large. Contact @maksenro if you want to increase limits!"
-msgstr "文本过大。若要增加限制，请联系 @maksenro！"
+msgstr "文本过大。如需提高限制，请联系 @maksenro！"
 
-#: utils/text_to_speech.py:91
+#: utils/text_to_speech.py:69
 #, python-brace-format
 msgid "@{username}, length - {len_text}: {preview}..."
-msgstr "@{username}，长度 - {len_text}：{preview}..."
+msgstr "@{username}，长度：{len_text}，预览：{preview}..."
 
-#: utils/text_to_speech.py:101 utils/text_to_speech.py:103
+#: utils/text_to_speech.py:80 utils/text_to_speech.py:82
 msgid "Could not detect language. Using default voice."
-msgstr "无法检测语言。使用默认语音。"
+msgstr "无法检测语言，使用默认语音。"
 
-#: utils/text_to_speech.py:106
+#: utils/text_to_speech.py:85
 #, python-brace-format
 msgid "Detected language: {lang}. Using voice: {voice}"
-msgstr "检测到语言：{lang}。使用语音：{voice}"
+msgstr "检测到语言：{lang}，使用语音：{voice}"
 
-#: utils/text_to_speech.py:129
+#: utils/text_to_speech.py:114
 #, python-brace-format
 msgid "Part {i}/{total_parts} synthesized in {seconds} sec."
-msgstr "第 {i}/{total_parts} 部分在 {seconds} 秒内合成。"
+msgstr "第 {i}/{total_parts} 部分在 {seconds} 秒内合成完成。"
 
-#: utils/text_to_speech.py:140
+#: utils/text_to_speech.py:123
 #, fuzzy, python-brace-format
 msgid "Failed to synthesize part {i}: {error}"
-msgstr "合成第 {i} 部分失败：{error}"
+msgstr "无法合成第 {i} 部分：{error}"
 
-#: handlers/private_chat_handlers.py:38
+#: handlers/private_chat_handlers.py:53
 msgid ""
 "👋 Hi! I can help you convert text to speech in various ways.\n"
 "\n"
@@ -145,38 +145,159 @@ msgid ""
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
-"👋 你好！我可以以多种方式帮助你将文本转换为语音。\n"
+"👋 你好！我能用多种方式帮助你将文本转换为语音。\n"
 "\n"
-"🔹 <b>我能做什么：</b>\n"
+"🔹 <b>功能：</b>\n"
 "- 发送文本消息给我进行语音合成。\n"
-"- 发送网站链接给我以提取并合成文本。\n"
-"- 发送文件（<code>.docx</code>、<code>.fb2</code>、<code>.epub</code>）给我以"
-"提取并合成文本。\n"
-"- 将我添加到群聊中，并使用命令 <b>/vv help</b> 查看如何在群组中使用我。\n"
+"- 发送网站链接，我会提取文本并进行合成。\n"
+"- 发送文件 (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>)，我会"
+"提取内容并合成。\n"
+"- 将我添加到群聊并使用 <b>/vv help</b> 获取使用方法。\n"
 "\n"
 "📄 <b>可用命令：</b>\n"
 "<b>/help</b> - 显示帮助\n"
 "<b>/change_lang</b> - 更改界面语言\n"
 "\n"
-"❓ <b>有问题或建议？</b>\n"
-"联系机器人管理员 @maksenro。\n"
+"❓ <b>疑问或建议？</b>\n"
+"请联系管理员 @maksenro。\n"
 "\n"
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">支持</a> | <a "
 "href=\"https://t.me/MKprodaction\">群组</a> ]"
 
-#: handlers/private_chat_handlers.py:69
-msgid "Please choose your language:"
-msgstr "请选择您的语言："
+#: handlers/private_chat_handlers.py:75
+#, fuzzy
+msgid ""
+"📖 <b>Available commands:</b>\n"
+"/start - Begin interaction with the bot\n"
+"/help - Show this message\n"
+"/change_lang - Change interface language\n"
+"\n"
+"🤖 <b>Bot capabilities:</b>\n"
+"- Send text messages, and the bot will synthesize them using text-to-"
+"speech.\n"
+"- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</"
+"code> formats, and the bot will extract and synthesize them.\n"
+"- Send links to web pages, and the bot will extract and synthesize the "
+"text.\n"
+"\n"
+"📂 <b>Supported formats:</b>\n"
+"- Text messages: any text\n"
+"- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- Links: HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>Settings:</b>\n"
+"- Use <b>/change_lang</b> command to change the interface language.\n"
+"- The bot supports multiple languages: English, Russian, Ukrainian, "
+"Chinese.\n"
+"\n"
+"👥 <b>Use in groups:</b>\n"
+"- Add the bot to a group.\n"
+"- Grant it the following permissions:\n"
+"  • Read messages\n"
+"  • Send messages\n"
+"  • Manage messages\n"
+"\n"
+"- <b>Available commands in groups:</b>\n"
+"  • /vv <text> - Synthesize the provided text.\n"
+"  • /vv <link> - Extract text from the link and synthesize it.\n"
+"  • /vv (in reply to a message) - Synthesize text from the replied-to "
+"message.\n"
+"\n"
+"❓ <b>Questions or suggestions?</b>\n"
+"Contact the bot administrator @maksenro.\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a "
+"href=\"https://t.me/MKprodaction\">Group</a> ]"
+msgstr ""
+"📖 <b>可用命令：</b>\n"
+"/start - 开始使用机器人\n"
+"/help - 显示此消息\n"
+"/change_lang - 更改界面语言\n"
+"\n"
+"🤖 <b>机器人功能：</b>\n"
+"- 发送文字，机器人将使用 TTS 进行合成。\n"
+"- 发送 <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> 文件，机器人"
+"提取文本后再合成。\n"
+"- 发送网页链接，机器人提取并合成其中的文本。\n"
+"\n"
+"📂 <b>支持的格式：</b>\n"
+"- 文本消息\n"
+"- 文档：<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+"- 链接：HTTP/HTTPS\n"
+"\n"
+"⚙️ <b>设置：</b>\n"
+"- 使用 <b>/change_lang</b> 命令更改语言。\n"
+"- 机器人支持英语、俄语、乌克兰语、中文。\n"
+"\n"
+"👥 <b>在群组中使用：</b>\n"
+"- 将机器人添加到群组。\n"
+"- 授予以下权限：\n"
+"  • 读取消息\n"
+"  • 发送消息\n"
+"  • 管理消息\n"
+"\n"
+"- <b>群组命令：</b>\n"
+"  • /vv &lt;text&gt; - 合成指定文本。\n"
+"  • /vv &lt;link&gt; - 提取链接文本并合成。\n"
+"  • /vv (回复消息) - 合成被回复消息的文本。\n"
+"\n"
+"❓ <b>问题或建议？</b>\n"
+"请联系管理员 @maksenro。\n"
+"\n"
+"[ <a href=\"https://www.donationalerts.com/r/mkprod\">捐助</a> | <a "
+"href=\"https://t.me/MKprodaction\">群组</a> ]"
 
-#: handlers/private_chat_handlers.py:79
+#: handlers/private_chat_handlers.py:114
+msgid "Set chunk size"
+msgstr "设置分段大小"
+
+#: handlers/private_chat_handlers.py:115
+msgid "Set TTS speed"
+msgstr "设置 TTS 速度"
+
+#: handlers/private_chat_handlers.py:117
+msgid "Choose a setting to update:"
+msgstr "请选择要修改的设置："
+
+#: handlers/private_chat_handlers.py:126
+msgid "Please enter the chunk size (5,000 - 80,000):"
+msgstr "请输入分段大小（5,000 - 80,000）："
+
+#: handlers/private_chat_handlers.py:140
+#, python-brace-format
+msgid "Chunk size updated to: {size}"
+msgstr "分段大小已更新为：{size}"
+
+#: handlers/private_chat_handlers.py:143
+msgid "Value out of range (5,000–80,000). Please try again."
+msgstr "数值超出范围（5,000–80,000），请重试。"
+
+#: handlers/private_chat_handlers.py:145
+msgid "Invalid number. Please try again."
+msgstr "无效数字，请重试。"
+
+#: handlers/private_chat_handlers.py:160
+msgid "Choose desired TTS speed:"
+msgstr "请选择 TTS 语速："
+
+#: handlers/private_chat_handlers.py:172
+#, python-brace-format
+msgid "Speed updated to: {spd}"
+msgstr "速度已更新为：{spd}"
+
+#: handlers/private_chat_handlers.py:193
+msgid "Please choose your language:"
+msgstr "请选择语言："
+
+#: handlers/private_chat_handlers.py:200
 msgid "Unsupported language."
 msgstr "不支持的语言。"
 
-#: handlers/private_chat_handlers.py:89
+#: handlers/private_chat_handlers.py:210
 msgid "Language updated!"
 msgstr "语言已更新！"
 
-#: handlers/private_chat_handlers.py:98
+#: handlers/private_chat_handlers.py:220
 msgid ""
 "📖 <b>Available commands:</b>\n"
 "/start - Begin interaction with the bot\n"
@@ -221,91 +342,91 @@ msgid ""
 "href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
 "📖 <b>可用命令：</b>\n"
-"/start - 开始与机器人互动\n"
+"/start - 开始使用机器人\n"
 "/help - 显示此消息\n"
-"/change_lang - 更改界面语言\n"
+"/change_lang - 切换界面语言\n"
 "\n"
 "🤖 <b>机器人功能：</b>\n"
-"- 发送文本消息，机器人将使用语音合成它们。\n"
-"- 发送 <code>.docx</code>、<code>.fb2</code>、<code>.epub</code> 格式的文档，"
-"机器人将提取并合成它们。\n"
-"- 发送网页链接，机器人将提取并合成文本。\n"
+"- 发送文本消息，机器人将以文本转语音。\n"
+"- 发送 <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> 文件，机器人"
+"会提取并朗读。\n"
+"- 发送网页链接，机器人提取并朗读其中内容。\n"
 "\n"
 "📂 <b>支持的格式：</b>\n"
-"- 文本消息：任何文本\n"
-"- 文档：<code>.docx</code>、<code>.fb2</code>、<code>.epub</code>\n"
+"- 文本消息：任意文本\n"
+"- 文档：<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
 "- 链接：HTTP/HTTPS\n"
 "\n"
 "⚙️ <b>设置：</b>\n"
-"- 使用 <b>/change_lang</b> 命令更改界面语言。\n"
-"- 机器人支持多种语言：英语、俄语、乌克兰语、中文。\n"
+"- 使用 <b>/change_lang</b> 命令切换语言。\n"
+"- 机器人支持英语、俄语、乌克兰语和中文。\n"
 "\n"
 "👥 <b>在群组中使用：</b>\n"
 "- 将机器人添加到群组。\n"
-"- 授予以下权限：\n"
-"  • 阅读消息\n"
+"- 给予以下权限：\n"
+"  • 读取消息\n"
 "  • 发送消息\n"
 "  • 管理消息\n"
 "\n"
-"- <b>群组中的可用命令：</b>\n"
-"  • /vv &lt;text&gt; - 合成提供的文本。\n"
-"  • /vv &lt;link&gt; - 从链接中提取文本并合成。\n"
-"  • /vv (回复消息时) - 从被回复的消息中合成文本。\n"
+"- <b>群组命令：</b>\n"
+"  • /vv &lt;text&gt; - 朗读提供的文本。\n"
+"  • /vv &lt;link&gt; - 提取链接文本并朗读。\n"
+"  • /vv (回复消息) - 朗读被回复的消息内容。\n"
 "\n"
-"❓ <b>有问题或建议？</b>\n"
-"联系机器人管理员 @maksenro。\n"
+"❓ <b>问题或建议？</b>\n"
+"请联系机器人管理员 @maksenro。\n"
 "\n"
 "[ <a href=\"https://www.donationalerts.com/r/mkprod\">支持</a> | <a "
 "href=\"https://t.me/MKprodaction\">群组</a> ]"
 
-#: handlers/private_chat_handlers.py:137
+#: handlers/private_chat_handlers.py:259
 msgid "Access denied."
-msgstr "Access denied."
+msgstr "拒绝访问。"
 
-#: handlers/private_chat_handlers.py:144
+#: handlers/private_chat_handlers.py:266
 msgid "Log file does not exist."
-msgstr "Log file does not exist."
+msgstr "日志文件不存在。"
 
-#: handlers/private_chat_handlers.py:152
+#: handlers/private_chat_handlers.py:274
 msgid "No log messages."
-msgstr "No log messages."
+msgstr "没有日志消息。"
 
-#: handlers/private_chat_handlers.py:167
+#: handlers/private_chat_handlers.py:289
 msgid "📝 Last log lines:\n"
-msgstr "📝 Last log lines:\n"
+msgstr "📝 日志最后几行:\n"
 
-#: handlers/private_chat_handlers.py:173
+#: handlers/private_chat_handlers.py:295
 #, python-brace-format
 msgid "Failed to read log file: {error}"
-msgstr "Failed to read log file: {error}"
+msgstr "读取日志文件失败：{error}"
 
-#: handlers/private_chat_handlers.py:187 handlers/group_chat_handlers.py:70
+#: handlers/private_chat_handlers.py:309 handlers/group_chat_handlers.py:70
 #, fuzzy
 msgid "Could not extract text."
 msgstr "无法合成：文本为空。"
 
-#: handlers/private_chat_handlers.py:201
+#: handlers/private_chat_handlers.py:323
 #, fuzzy, python-brace-format
 msgid "Failed to process URL: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "处理链接失败：{error}"
 
-#: handlers/private_chat_handlers.py:211 handlers/group_chat_handlers.py:88
+#: handlers/private_chat_handlers.py:333 handlers/group_chat_handlers.py:88
 #, fuzzy
 msgid "Empty text."
-msgstr "合成文本为空。"
+msgstr "没有可合成的文本。"
 
-#: handlers/private_chat_handlers.py:225
+#: handlers/private_chat_handlers.py:347
 msgid "File is too large (max 20 MB)."
-msgstr ""
+msgstr "文件太大（最大 20 MB）。"
 
-#: handlers/private_chat_handlers.py:263
+#: handlers/private_chat_handlers.py:385
 msgid "Could not extract text from the document."
-msgstr ""
+msgstr "无法从文档中提取文本。"
 
-#: handlers/private_chat_handlers.py:273
+#: handlers/private_chat_handlers.py:395
 #, fuzzy, python-brace-format
 msgid "Failed to process document: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "处理链接失败：{error}"
 
 #: handlers/group_chat_handlers.py:26
 msgid ""
@@ -331,35 +452,35 @@ msgid ""
 "[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/mkprod\">Support</"
 "a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
 msgstr ""
-"📖 <b>帮助 /vv 命令：</b>\n"
+"📖 <b>/vv 命令帮助：</b>\n"
 "\n"
-"🔹 <b>/vv &lt;text&gt;</b> - 合成提供的文本。\n"
-"🔹 <b>/vv &lt;link&gt;</b> - 从链接中提取文本并合成。\n"
-"🔹 <b>/vv</b> (回复消息时) - 从被回复的消息中合成文本。\n"
+"🔹 <b>/vv &lt;text&gt;</b> - 合成指定文本。\n"
+"🔹 <b>/vv &lt;link&gt;</b> - 提取链接中的文本并合成。\n"
+"🔹 <b>/vv</b>（回复消息时）- 合成被回复消息的文本。\n"
 "🔹 <b>/vv help</b> 或 <b>/vv h</b> - 显示此帮助。\n"
 "\n"
 "📂 <b>支持的格式：</b>\n"
-"- 文本：任何文本\n"
+"- 文本：任意文本\n"
 "- 链接：HTTP/HTTPS\n"
 "\n"
 "⚙️ <b>设置：</b>\n"
 "- 机器人支持多种语言：英语、俄语、乌克兰语、中文。\n"
 "\n"
-"❓ <b>有问题或建议？</b>\n"
-"联系机器人管理员 @maksenro。\n"
+"❓ <b>问题或建议？</b>\n"
+"请联系机器人管理员 @maksenro。\n"
 "\n"
 "[ @MKttsBOT | <a href=\"https://www.donationalerts.com/r/mkprod\">支持</a> | "
 "<a href=\"https://t.me/MKprodaction\">群组</a> ]"
 
 #: handlers/group_chat_handlers.py:52
 msgid "No text to synthesize."
-msgstr "No text to synthesize."
+msgstr "没有要合成的文本。"
 
 #: handlers/group_chat_handlers.py:60
 msgid "Please provide text after /vv or reply to a message."
-msgstr "Please provide text after /vv or reply to a message."
+msgstr "请在 /vv 后添加文本内容，或回复某条消息。"
 
 #: handlers/group_chat_handlers.py:84
 #, fuzzy, python-brace-format
 msgid "Failed to process link: {error}"
-msgstr "Failed to process link: {error}"
+msgstr "处理链接失败：{error}"
