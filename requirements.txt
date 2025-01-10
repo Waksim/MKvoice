@@ -10,6 +10,7 @@ newspaper3k==0.2.8
 textstat==0.7.3
 edge-tts==6.1.19
 python-dotenv==1.0.0
+langdetect==1.0.9  # For language detection
 
 # Dependencies for document processing
 python-docx==1.1.2        # For working with DOCX files
