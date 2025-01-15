@@ -12,6 +12,7 @@ from aiogram.types import BotCommand, BotCommandScopeDefault
 from aiogram.fsm.storage.memory import MemoryStorage
 
 from config import TOKEN
+from middlewares.clear_state import ClearStateMiddleware
 from middlewares.i18n_middleware import I18nMiddleware
 from project_structure.paths import DATABASE_PATH
 # from bot import bot  # Assumes you have a bot instance in bot.py
@@ -88,6 +89,8 @@ async def main():
     i18n = I18nMiddleware(get_translator)
     dp.message.middleware(i18n)
     dp.callback_query.middleware(i18n)
+    dp.message.middleware(ClearStateMiddleware())
+    dp.callback_query.middleware(ClearStateMiddleware())
 
     # Set commands
     await set_bot_commands(bot)
