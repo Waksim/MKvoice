@@ -97,8 +97,9 @@ document.addEventListener('DOMContentLoaded', function () {
             // Официальный метод отправки данных
             tg.sendData(dataToSend);
 
-            // Telegram закроет его автоматически после успешной отправки.
-            // tg.close();
+            // ИЗМЕНЕНИЕ: Явно закрываем Web App после отправки данных.
+            // Это гарантирует, что приложение закроется, и данные будут успешно переданы боту.
+            tg.close();
 
         } catch (error) {
             console.error("Error during sending data:", error);
