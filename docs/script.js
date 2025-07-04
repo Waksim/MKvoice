@@ -84,6 +84,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
         try {
             const dataToSend = JSON.stringify({ text: textValue });
+
+            // ИЗМЕНЕНИЕ: Проверка на ограничение размера данных в Telegram Web App (4096 байт)
+            // Используем Blob для точного подсчета байтов в UTF-8 строке.
+            if (new Blob([dataToSend]).size > 4096) {
+                tg.showAlert('The text is too long (max 4096 bytes). Please shorten it and try again.');
+                return;
+            }
+
             console.log("Sending data to bot:", dataToSend);
 
             // Официальный метод отправки данных
