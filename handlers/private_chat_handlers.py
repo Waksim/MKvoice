@@ -16,7 +16,6 @@ from typing import Callable
 
 import chardet
 from aiogram import Bot, F, Router
-# ИЗМЕНЕНИЕ: Убран неиспользуемый импорт ContentType
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
@@ -32,47 +31,20 @@ from utils.i18n import get_translator, get_user_lang, set_user_lang
 from utils.text_extraction import (extract_text_from_url_dynamic,
                                    extract_text_from_url_static)
 from utils.text_to_speech import synthesize_text_to_audio_edge
-from utils.user_settings import get_user_settings, save_user_chunk_size, save_user_speed
+from utils.user_settings import get_user_settings
 
 private_router = Router()
 private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 
 
-# ===================== Web App Handler (MUST BE FIRST) =====================
-
-# ИЗМЕНЕНИЕ: Фильтр изменен на F.web_app_data для корректного отлова сообщений от Web App.
-# Это правильный способ ловить такие сообщения, так как они приходят с полем web_app_data,
-# а не с отдельным типом контента.
-@private_router.message(F.web_app_data)
-async def handle_web_app_data(message: Message, _: Callable) -> None:
-    """
-    Handles data received from the Telegram Web App.
-    This handler MUST be registered before any generic text handlers.
-    """
-    user_id = message.from_user.id
-    logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
-
-    # --- Немедленно отвечаем пользователю, что данные получены ---
-    await message.answer(_("Received your text. Starting synthesis..."))
-
-    try:
-        data = json.loads(message.web_app_data.data)
-        text_to_speak = data.get("text")
-
-        if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
-            logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
-            await message.answer(_("Received empty text from the web app. Please try again."))
-            return
-
-        logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
-        await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
-
-    except json.JSONDecodeError:
-        logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
-        await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
-    except Exception as e:
-        logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
-        await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
+# ===================== Web App Handler (ОБРАБОТЧИК УДАЛЁН) =====================
+#
+# Старый обработчик @private_router.message(F.web_app_data) был удалён.
+# Вся логика теперь находится на отдельном бэкенд-сервере (backend/backend_server.py),
+# который принимает прямые HTTP-запросы от Web App.
+# Это снимает ограничение на размер данных в 4 КБ.
+#
+# ==============================================================================
 
 
 # ===================== Standard Command Handlers =====================
@@ -410,16 +382,14 @@ async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
 
 # ===================== Generic Text Handler (MUST BE LAST) =====================
 
-@private_router.message(F.text, F.web_app_data.is_(None))
+@private_router.message(F.text)
 async def handle_text(message: Message, _: Callable) -> None:
     """
     Handles any plain text sent by the user. Synthesizes the text to speech.
-    This handler explicitly IGNORES messages that have web_app_data to prevent conflicts.
-    It MUST be one of the last message handlers registered in this router.
+    This handler MUST be one of the last message handlers registered in this router.
     """
     text = message.text
     if not text or not text.strip():
-        # This check is good practice to prevent reacting to empty messages
         return
 
     await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)

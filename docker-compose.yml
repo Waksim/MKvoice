@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # Сервис для основного телеграм-бота (polling)
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.bot
+    container_name: mkvoice_bot
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - db_data:/app/db
+      - audio_files:/app/audio
+      - bot_logs:/app/logs
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  # Сервис для бэкенда (FastAPI), который принимает данные от Web App
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: mkvoice_backend
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - db_data:/app/db
+      - audio_files:/app/audio
+      - bot_logs:/app/logs
+    ports:
+      - "8000:8000" # Пробрасываем порт 8000 для доступа извне
+    restart: unless-stopped
+
+volumes:
+  db_data:
+  audio_files:
+  bot_logs:
