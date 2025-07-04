@@ -1,0 +1,25 @@
+# Используем официальный образ Python
+FROM python:3.13-slim
+
+# Устанавливаем рабочую директорию
+WORKDIR /app
+
+# Копируем файлы зависимостей
+COPY requirements.txt .
+
+# Устанавливаем зависимости
+# Обновляем pip и устанавливаем playwright с зависимостями
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt && \
+    playwright install && \
+    playwright install-deps
+
+# Копируем все файлы проекта в контейнер
+COPY . .
+
+# Запускаем скрипт компиляции переводов
+RUN chmod +x ./locales/compile_translations.sh && \
+    ./locales/compile_translations.sh
+
+# Команда для запуска бота
+CMD ["python", "main.py"]

@@ -1,8 +1,15 @@
 # ============================= FILE: project_structure/paths.py =============================
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-DATABASE_PATH = PROJECT_ROOT / 'MKvoiceDB.sqlite'
+# Корень проекта - это текущая директория, откуда запускается Docker
+PROJECT_ROOT = Path("/app")
+
+# Путь к директории с базой данных
+DB_DIR = PROJECT_ROOT / "db"
+DB_DIR.mkdir(exist_ok=True) # Создаем директорию, если ее нет
+
+# Полный путь к файлу базы данных
+DATABASE_PATH = DB_DIR / "MKvoiceDB.sqlite"
 
 STRUCTURE_DIR = PROJECT_ROOT / 'project_structure' / 'backup'
 STRUCTURE_DIR.mkdir(parents=True, exist_ok=True)

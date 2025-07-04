@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', function () {
     const debugConsole = document.getElementById('debug-console');
 
-    // ================== ИЗМЕНЕНИЕ: ФУНКЦИЯ ЛОГИРОВАНИЯ НА СТРАНИЦУ ==================
+    // ================== ФУНКЦИЯ ЛОГИРОВАНИЯ НА СТРАНИЦУ ==================
     function logToPage(message, type = 'info') {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
@@ -13,11 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
         }
         logEntry.style.color = color;
         logEntry.textContent = `[${timestamp}] ${message}`;
-
-        // Добавляем новые логи сверху
         debugConsole.insertBefore(logEntry, debugConsole.firstChild);
-
-        // Также выводим в настоящую консоль для отладки в браузере
         if (type === 'error') console.error(message);
         else if (type === 'warn') console.warn(message);
         else console.log(message);
@@ -26,7 +22,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     logToPage("DOM content loaded. Initializing script...");
 
-    // 1. Проверяем, что объект Telegram Web App доступен
     if (!window.Telegram || !window.Telegram.WebApp) {
         logToPage("Fatal: Telegram Web App script is not loaded or initialized.", 'error');
         document.body.innerHTML = '<h1>Error</h1><p>Could not initialize Telegram Web App. Please open this page inside Telegram.</p>';
@@ -36,14 +31,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const tg = window.Telegram.WebApp;
     logToPage("Telegram Web App object initialized successfully.");
     logToPage(`Theme params: ${JSON.stringify(tg.themeParams)}`, 'warn');
+    logToPage(`User data: ${JSON.stringify(tg.initDataUnsafe.user)}`, 'warn');
 
-    // 2. Вызываем необходимые методы Telegram Web App при старте
+
     tg.ready();
     logToPage("tg.ready() called.");
     tg.expand();
     logToPage("tg.expand() called.");
 
-    // 3. Получаем все элементы интерфейса
     const textInput = document.getElementById('text-input');
     const pasteBtn = document.getElementById('paste-btn');
     const clearBtn = document.getElementById('clear-btn');
@@ -51,14 +46,13 @@ document.addEventListener('DOMContentLoaded', function () {
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
-    // 4. Настройка истории для Undo/Redo (без изменений)
     let history = [textInput.value];
     let historyIndex = 0;
     let debounceTimeout;
 
-    // --- Функции для управления состоянием (без изменений логики, но с добавлением логов) ---
     function updateAllButtonsState() {
         const hasText = textInput.value.trim().length > 0;
+        // Главная кнопка Telegram теперь тоже управляется этой логикой
         if (hasText) {
             tg.MainButton.enable();
         } else {
@@ -84,11 +78,11 @@ document.addEventListener('DOMContentLoaded', function () {
         }, 300);
     }
 
-    // ================== ИЗМЕНЕНИЕ: Полностью переработанная функция sendData для отладки ==================
+    // ================== ИЗМЕНЕНИЕ: Новая функция отправки данных на бэкенд ==================
     /**
-     * Функция отправки данных боту с подробным логированием каждого шага.
+     * Асинхронная функция отправки данных на внешний бэкенд-сервер.
      */
-    function sendData() {
+    async function sendDataToBackend() {
         logToPage("--- Send process started ---");
         const textValue = textInput.value.trim();
 
@@ -97,45 +91,69 @@ document.addEventListener('DOMContentLoaded', function () {
             tg.showAlert('Text cannot be empty!');
             return;
         }
+
+        // Получаем ID пользователя из данных инициализации Web App
+        const userId = tg.initDataUnsafe.user.id;
+        if (!userId) {
+            logToPage("Fatal: Could not get user ID from Telegram.", 'error');
+            tg.showAlert('Could not identify you. Please restart the bot and try again.');
+            return;
+        }
+
         logToPage(`Text for sending: "${textValue.substring(0, 50)}..."`);
+        logToPage(`User ID: ${userId}`);
+
+        // Делаем кнопки неактивными на время отправки
+        sendBtn.disabled = true;
+        tg.MainButton.showProgress();
 
         try {
-            const dataToSend = JSON.stringify({ text: textValue });
-            logToPage(`Data stringified. Length: ${dataToSend.length} bytes.`);
+            const backendUrl = 'http://62.113.115.33:8000/process-text'; // ВАШ АДРЕС СЕРВЕРА
+            logToPage(`Sending POST request to ${backendUrl}`);
 
-            const dataSize = new Blob([dataToSend]).size;
-            logToPage(`Payload size calculated: ${dataSize} bytes.`);
+            const response = await fetch(backendUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    user_id: userId,
+                    text: textValue,
+                }),
+            });
 
-            if (dataSize > 4096) {
-                logToPage(`Validation failed: The text is too long (size: ${dataSize} bytes).`, 'error');
-                tg.showAlert(`The text is too long (max 4096 bytes, current: ${dataSize}). Please shorten it.`);
-                return;
+            const responseData = await response.json();
+
+            if (!response.ok) {
+                logToPage(`Server returned an error: ${response.status} - ${responseData.detail || 'Unknown error'}`, 'error');
+                tg.showAlert(`Server error: ${responseData.detail || 'An unknown error occurred.'}`);
+            } else {
+                logToPage("Data sent successfully to backend.", 'info');
+                tg.showAlert("Your text has been sent for processing. Please check the bot chat for the result.");
+                // Закрываем Web App после успешной отправки
+                tg.close();
             }
 
-            logToPage("All validations passed. Calling tg.sendData()...");
-
-            // Самый важный вызов
-            tg.sendData(dataToSend);
-
-            logToPage("tg.sendData() was called. Now calling tg.close(). If the app closes but data is not received, the problem is likely on the bot's side or in Telegram's infrastructure.");
-
         } catch (error) {
-            logToPage(`An unexpected error occurred during the send process: ${error.message}`, 'error');
-            tg.showAlert(`An error occurred: ${error.message}`);
+            logToPage(`An unexpected network error occurred: ${error.message}`, 'error');
+            tg.showAlert(`A network error occurred: ${error.message}. Please check your connection or contact the administrator.`);
+        } finally {
+            // Возвращаем кнопки в активное состояние
+            sendBtn.disabled = false;
+            tg.MainButton.hideProgress();
+            updateAllButtonsState(); // Обновляем состояние на случай, если пользователь не закрыл окно
         }
     }
     // =====================================================================================================
 
     // --- Инициализация и настройка обработчиков ---
 
-    // 5. Конфигурируем главную кнопку Telegram
     tg.MainButton.setText('Send Text');
     tg.MainButton.color = '#2ea6ff';
     tg.MainButton.textColor = '#ffffff';
     tg.MainButton.show();
     logToPage("MainButton configured and shown.");
 
-    // 6. Устанавливаем обработчики событий для кнопок
     textInput.addEventListener('input', saveState);
 
     pasteBtn.addEventListener('click', () => {
@@ -175,11 +193,10 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // 7. Привязываем функцию отправки к кнопкам
-    sendBtn.addEventListener('click', sendData);
-    tg.MainButton.onClick(sendData);
+    // Привязываем НОВУЮ функцию отправки к кнопкам
+    sendBtn.addEventListener('click', sendDataToBackend);
+    tg.MainButton.onClick(sendDataToBackend);
     logToPage("Event listeners for send buttons are set.");
 
-    // 8. Устанавливаем начальное состояние всех кнопок при загрузке страницы
     updateAllButtonsState();
 });
