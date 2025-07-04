@@ -46,7 +46,7 @@ p {
 
 textarea {
     width: 100%;
-    height: 50vh; /* Takes up a large portion of the viewport height */
+    height: 40vh; /* Уменьшим высоту, чтобы освободить место для консоли */
     padding: 12px;
     border-radius: 8px;
     border: 1px solid var(--tg-theme-secondary-bg-color, #232e3c);
@@ -116,3 +116,31 @@ button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ================== ИЗМЕНЕНИЕ: СТИЛИ ДЛЯ КОНСОЛИ ОТЛАДКИ ================== */
+#debug-container {
+    margin-top: 20px;
+    width: 100%;
+}
+
+#debug-container h2 {
+    font-size: 16px;
+    color: var(--tg-theme-hint-color, #b1c3d5);
+    margin-bottom: 5px;
+    text-align: left;
+}
+
+#debug-console {
+    background-color: #000;
+    color: #00ff00;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 12px;
+    padding: 10px;
+    border-radius: 5px;
+    height: 150px;
+    overflow-y: scroll;
+    white-space: pre-wrap; /* Перенос строк */
+    word-wrap: break-word; /* Перенос длинных слов */
+    border: 1px solid var(--tg-theme-secondary-bg-color, #232e3c);
+}
+/* ========================================================================= */
