@@ -21,7 +21,7 @@ class I18nMiddleware(BaseMiddleware):
             user_id = None
 
         if user_id:
-            lang_code = get_user_lang(user_id)
+            lang_code = await get_user_lang(user_id)  # Добавлен await
             translator = self.get_translator(lang_code)
         else:
             # Default language

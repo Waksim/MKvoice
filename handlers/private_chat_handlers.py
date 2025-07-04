@@ -48,42 +48,28 @@ async def handle_web_app_data(message: Message, _: Callable) -> None:
     user_id = message.from_user.id
     logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
 
-    # Добавлено подробное логирование
-    logger.debug(f"WebApp data structure: {message.web_app_data}")
+    # --- Немедленно отвечаем пользователю, что данные получены ---
+    await message.answer(_("Received your text. Starting synthesis..."))
 
     try:
-        # --- Добавлена проверка на пустые данные ---
-        if not message.web_app_data.data:
-            logger.warning(f"Empty WebApp data from user {user_id}")
-            await message.answer(_("Received empty data from the web app."))
+        data = json.loads(message.web_app_data.data)
+        text_to_speak = data.get("text")
+
+        if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
+            logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
+            await message.answer(_("Received empty text from the web app. Please try again."))
             return
 
-        # --- Немедленно отвечаем пользователю, что данные получены ---
-        await message.answer(_("Received your text. Starting synthesis..."))
+        logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
+        await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
 
-        try:
-            data = json.loads(message.web_app_data.data)
-            text_to_speak = data.get("text")
-
-            # --- Улучшенная проверка данных ---
-            if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
-                logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
-                await message.answer(_("Received invalid text from the web app. Please try again."))
-                return
-
-            logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
-            await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
-
-        except json.JSONDecodeError as e:
-            logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
-            await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
-        except Exception as e:
-            logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
-            await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
-
+    except json.JSONDecodeError:
+        logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
+        await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
     except Exception as e:
-        logger.critical(f"CRITICAL ERROR in WebApp handler: {e}", exc_info=True)
-        await message.answer(_("A critical error occurred while processing your request."))
+        logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
+        await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
+
 
 # ===================== Standard Command Handlers =====================
 
@@ -211,7 +197,7 @@ async def handle_chunk_size_input(message: Message, _: Callable, state: FSMConte
     try:
         chunk_val = int(message.text.strip())
         if 5000 <= chunk_val <= 80000:
-            save_user_chunk_size(message.from_user.id, chunk_val)
+            await save_user_chunk_size(message.from_user.id, chunk_val)  # Добавлен await
             await message.answer(_("Chunk size updated to: {size}").format(size=chunk_val))
             await state.clear()
         else:
@@ -244,7 +230,7 @@ async def cb_speed_value(callback_query: CallbackQuery, _: Callable) -> None:
     Saves the speed to DB and notifies the user.
     """
     speed_val = callback_query.data.split("speed:")[1]
-    save_user_speed(callback_query.from_user.id, speed_val)
+    await save_user_speed(callback_query.from_user.id, speed_val)  # Добавлен await
 
     await callback_query.message.answer(_("Speed updated to: {spd}").format(spd=speed_val))
     await callback_query.answer()
@@ -279,7 +265,7 @@ async def process_change_lang(callback_query: CallbackQuery, _: Callable) -> Non
         logger.warning(f"User {callback_query.from_user.id} tried to set unsupported language: {lang_code}")
         return
 
-    set_user_lang(callback_query.from_user.id, lang_code)
+    await set_user_lang(callback_query.from_user.id, lang_code)  # Добавлен await
     translator = get_translator(lang_code)
     __ = translator.gettext
 
