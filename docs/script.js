@@ -1,18 +1,47 @@
 document.addEventListener('DOMContentLoaded', function () {
+    const debugConsole = document.getElementById('debug-console');
+
+    // ================== ИЗМЕНЕНИЕ: ФУНКЦИЯ ЛОГИРОВАНИЯ НА СТРАНИЦУ ==================
+    function logToPage(message, type = 'info') {
+        const timestamp = new Date().toLocaleTimeString();
+        const logEntry = document.createElement('div');
+        let color = '#00ff00'; // Зеленый для info
+        if (type === 'error') {
+            color = '#ff4444'; // Красный для ошибок
+        } else if (type === 'warn') {
+            color = '#ffbb33'; // Желтый для предупреждений
+        }
+        logEntry.style.color = color;
+        logEntry.textContent = `[${timestamp}] ${message}`;
+
+        // Добавляем новые логи сверху
+        debugConsole.insertBefore(logEntry, debugConsole.firstChild);
+
+        // Также выводим в настоящую консоль для отладки в браузере
+        if (type === 'error') console.error(message);
+        else if (type === 'warn') console.warn(message);
+        else console.log(message);
+    }
+    // ===============================================================================
+
+    logToPage("DOM content loaded. Initializing script...");
+
     // 1. Проверяем, что объект Telegram Web App доступен
     if (!window.Telegram || !window.Telegram.WebApp) {
-        console.error("Telegram Web App script is not loaded or initialized.");
-        // Показываем ошибку пользователю, если скрипт не загрузился
+        logToPage("Fatal: Telegram Web App script is not loaded or initialized.", 'error');
         document.body.innerHTML = '<h1>Error</h1><p>Could not initialize Telegram Web App. Please open this page inside Telegram.</p>';
         return;
     }
 
     const tg = window.Telegram.WebApp;
-    console.log("Telegram Web App object initialized:", tg);
+    logToPage("Telegram Web App object initialized successfully.");
+    logToPage(`Theme params: ${JSON.stringify(tg.themeParams)}`, 'warn');
 
     // 2. Вызываем необходимые методы Telegram Web App при старте
-    tg.ready();   // Сообщаем Telegram, что приложение готово
-    tg.expand();  // Растягиваем приложение на весь экран
+    tg.ready();
+    logToPage("tg.ready() called.");
+    tg.expand();
+    logToPage("tg.expand() called.");
 
     // 3. Получаем все элементы интерфейса
     const textInput = document.getElementById('text-input');
@@ -22,90 +51,83 @@ document.addEventListener('DOMContentLoaded', function () {
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
-    // 4. Настройка истории для Undo/Redo
+    // 4. Настройка истории для Undo/Redo (без изменений)
     let history = [textInput.value];
     let historyIndex = 0;
     let debounceTimeout;
 
-    // --- Функции для управления состоянием ---
-
-    /**
-     * Обновляет состояние всех кнопок (активна/неактивна) в зависимости от наличия текста.
-     */
+    // --- Функции для управления состоянием (без изменений логики, но с добавлением логов) ---
     function updateAllButtonsState() {
         const hasText = textInput.value.trim().length > 0;
-
-        // Включаем/выключаем главную кнопку Telegram
-        // Кнопка уже видима, мы только управляем ее состоянием 'enabled'/'disabled'
         if (hasText) {
             tg.MainButton.enable();
         } else {
             tg.MainButton.disable();
         }
-
-        // Включаем/выключаем кнопки на странице
         sendBtn.disabled = !hasText;
         clearBtn.disabled = !hasText;
         undoBtn.disabled = historyIndex <= 0;
         redoBtn.disabled = historyIndex >= history.length - 1;
     }
 
-    /**
-     * Сохраняет текущее состояние текста в историю для Undo/Redo.
-     * Использует debounce для предотвращения слишком частых сохранений.
-     */
     function saveState() {
         clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => {
-            // Если мы откатывались назад и начали вводить новый текст,
-            // удаляем "будущие" состояния
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
             }
-            // Добавляем новое состояние, только если оно отличается от последнего
             if (history[history.length - 1] !== textInput.value) {
                 history.push(textInput.value);
                 historyIndex = history.length - 1;
-                console.log(`State saved. History size: ${history.length}`);
             }
             updateAllButtonsState();
-        }, 300); // Задержка в 300 мс
+        }, 300);
     }
 
+    // ================== ИЗМЕНЕНИЕ: Полностью переработанная функция sendData для отладки ==================
     /**
-     * Функция отправки данных боту.
+     * Функция отправки данных боту с подробным логированием каждого шага.
      */
     function sendData() {
+        logToPage("--- Send process started ---");
         const textValue = textInput.value.trim();
+
         if (textValue.length === 0) {
+            logToPage("Validation failed: Text is empty.", 'warn');
             tg.showAlert('Text cannot be empty!');
             return;
         }
+        logToPage(`Text for sending: "${textValue.substring(0, 50)}..."`);
 
         try {
             const dataToSend = JSON.stringify({ text: textValue });
+            logToPage(`Data stringified. Length: ${dataToSend.length} bytes.`);
 
-            // ИЗМЕНЕНИЕ: Проверка на ограничение размера данных в Telegram Web App (4096 байт)
-            // Используем Blob для точного подсчета байтов в UTF-8 строке.
-            if (new Blob([dataToSend]).size > 4096) {
-                tg.showAlert('The text is too long (max 4096 bytes). Please shorten it and try again.');
+            const dataSize = new Blob([dataToSend]).size;
+            logToPage(`Payload size calculated: ${dataSize} bytes.`);
+
+            if (dataSize > 4096) {
+                logToPage(`Validation failed: The text is too long (size: ${dataSize} bytes).`, 'error');
+                tg.showAlert(`The text is too long (max 4096 bytes, current: ${dataSize}). Please shorten it.`);
                 return;
             }
 
-            console.log("Sending data to bot:", dataToSend);
+            logToPage("All validations passed. Calling tg.sendData()...");
 
-            // Официальный метод отправки данных
+            // Самый важный вызов
             tg.sendData(dataToSend);
 
-            // ИЗМЕНЕНИЕ: Явно закрываем Web App после отправки данных.
-            // Это гарантирует, что приложение закроется, и данные будут успешно переданы боту.
+            logToPage("tg.sendData() was called. Now calling tg.close(). If the app closes but data is not received, the problem is likely on the bot's side or in Telegram's infrastructure.");
+
+            // Закрываем приложение, чтобы завершить процесс
             tg.close();
 
         } catch (error) {
-            console.error("Error during sending data:", error);
+            logToPage(`An unexpected error occurred during the send process: ${error.message}`, 'error');
             tg.showAlert(`An error occurred: ${error.message}`);
         }
     }
+    // =====================================================================================================
 
     // --- Инициализация и настройка обработчиков ---
 
@@ -113,17 +135,11 @@ document.addEventListener('DOMContentLoaded', function () {
     tg.MainButton.setText('Send Text');
     tg.MainButton.color = '#2ea6ff';
     tg.MainButton.textColor = '#ffffff';
-
-    // --- ИЗМЕНЕНИЕ: Показываем кнопку один раз при инициализации.
-    // Это гарантирует, что компонент будет отрисован и готов к работе.
     tg.MainButton.show();
-
+    logToPage("MainButton configured and shown.");
 
     // 6. Устанавливаем обработчики событий для кнопок
-    textInput.addEventListener('input', () => {
-        // Убрали дублирующий вызов updateAllButtonsState(), так как он есть в saveState
-        saveState();
-    });
+    textInput.addEventListener('input', saveState);
 
     pasteBtn.addEventListener('click', () => {
         navigator.clipboard.readText()
@@ -131,9 +147,10 @@ document.addEventListener('DOMContentLoaded', function () {
                 textInput.value = text;
                 saveState();
                 updateAllButtonsState();
+                logToPage("Text pasted from clipboard.");
             })
             .catch(err => {
-                console.error('Failed to read clipboard:', err);
+                logToPage(`Failed to read clipboard: ${err}`, 'error');
                 tg.showAlert('Could not read from clipboard. Please paste manually.');
             });
     });
@@ -142,6 +159,7 @@ document.addEventListener('DOMContentLoaded', function () {
         textInput.value = '';
         saveState();
         updateAllButtonsState();
+        logToPage("Text cleared.");
     });
 
     undoBtn.addEventListener('click', () => {
@@ -162,7 +180,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // 7. Привязываем функцию отправки к кнопкам
     sendBtn.addEventListener('click', sendData);
-    tg.MainButton.onClick(sendData); // Надежный обработчик для главной кнопки
+    tg.MainButton.onClick(sendData);
+    logToPage("Event listeners for send buttons are set.");
 
     // 8. Устанавливаем начальное состояние всех кнопок при загрузке страницы
     updateAllButtonsState();
