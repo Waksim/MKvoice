@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Включаем/выключаем главную кнопку Telegram
         if (hasText) {
             tg.MainButton.enable();
+            tg.MainButton.show();
         } else {
             tg.MainButton.disable();
         }
@@ -88,9 +89,10 @@ document.addEventListener('DOMContentLoaded', function () {
             // Официальный метод отправки данных
             tg.sendData(dataToSend);
 
-            // Закрываем Web App после успешной отправки для лучшего UX.
-            // Закомментируйте на время отладки, чтобы видеть логи в консоли.
-            tg.close();
+            // --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: НЕ ЗАКРЫВАЕМ ПРИЛОЖЕНИЕ САМОСТОЯТЕЛЬНО ---
+            // Telegram закроет его автоматически после успешной отправки.
+            // tg.close();
+
         } catch (error) {
             console.error("Error during sending data:", error);
             tg.showAlert(`An error occurred: ${error.message}`);
@@ -103,7 +105,6 @@ document.addEventListener('DOMContentLoaded', function () {
     tg.MainButton.setText('Send Text');
     tg.MainButton.color = '#2ea6ff';
     tg.MainButton.textColor = '#ffffff';
-    tg.MainButton.show(); // Показываем кнопку сразу при загрузке
 
     // 6. Устанавливаем обработчики событий для кнопок
     textInput.addEventListener('input', () => {
