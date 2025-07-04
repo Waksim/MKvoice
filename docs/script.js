@@ -119,9 +119,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
             logToPage("tg.sendData() was called. Now calling tg.close(). If the app closes but data is not received, the problem is likely on the bot's side or in Telegram's infrastructure.");
 
-            // Закрываем приложение, чтобы завершить процесс
-            // tg.close();
-
         } catch (error) {
             logToPage(`An unexpected error occurred during the send process: ${error.message}`, 'error');
             tg.showAlert(`An error occurred: ${error.message}`);
