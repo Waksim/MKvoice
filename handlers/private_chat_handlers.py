@@ -48,28 +48,42 @@ async def handle_web_app_data(message: Message, _: Callable) -> None:
     user_id = message.from_user.id
     logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
 
-    # --- Немедленно отвечаем пользователю, что данные получены ---
-    await message.answer(_("Received your text. Starting synthesis..."))
+    # Добавлено подробное логирование
+    logger.debug(f"WebApp data structure: {message.web_app_data}")
 
     try:
-        data = json.loads(message.web_app_data.data)
-        text_to_speak = data.get("text")
-
-        if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
-            logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
-            await message.answer(_("Received empty text from the web app. Please try again."))
+        # --- Добавлена проверка на пустые данные ---
+        if not message.web_app_data.data:
+            logger.warning(f"Empty WebApp data from user {user_id}")
+            await message.answer(_("Received empty data from the web app."))
             return
 
-        logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
-        await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
+        # --- Немедленно отвечаем пользователю, что данные получены ---
+        await message.answer(_("Received your text. Starting synthesis..."))
 
-    except json.JSONDecodeError:
-        logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
-        await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
+        try:
+            data = json.loads(message.web_app_data.data)
+            text_to_speak = data.get("text")
+
+            # --- Улучшенная проверка данных ---
+            if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
+                logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
+                await message.answer(_("Received invalid text from the web app. Please try again."))
+                return
+
+            logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
+            await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
+
+        except json.JSONDecodeError as e:
+            logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
+            await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
+        except Exception as e:
+            logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
+            await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
+
     except Exception as e:
-        logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
-        await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
-
+        logger.critical(f"CRITICAL ERROR in WebApp handler: {e}", exc_info=True)
+        await message.answer(_("A critical error occurred while processing your request."))
 
 # ===================== Standard Command Handlers =====================
 

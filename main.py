@@ -7,7 +7,7 @@ import asyncio
 import sqlite3
 import sys
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, BaseMiddleware
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault
@@ -27,6 +27,13 @@ logger.remove()
 logger.add(sys.stderr, level="INFO")
 # Логи уровня DEBUG и выше будут записываться в файл
 logger.add("bot.log", level="DEBUG", rotation="10 MB", compression="zip")
+
+class WebAppDataMiddleware(BaseMiddleware):
+    """Middleware для логирования Web App данных"""
+    async def __call__(self, handler, event, data):
+        if event.web_app_data:
+            logger.info(f"WebAppData received: {event.web_app_data}")
+        return await handler(event, data)
 
 
 def init_db() -> None:
@@ -116,6 +123,9 @@ async def main() -> None:
     i18n = I18nMiddleware(get_translator)
     dp.message.middleware(i18n)
     dp.callback_query.middleware(i18n)
+
+    # --- Добавлен middleware для обработки Web App данных ---
+    dp.update.middleware(WebAppDataMiddleware())
 
     # Регистрация роутеров
     dp.include_router(private_router)
