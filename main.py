@@ -8,7 +8,7 @@ import sqlite3
 import sys
 
 from aiogram import Bot, Dispatcher
-from aiogram.client.default import DefaultBotProperties  # --- ИЗМЕНЕНИЕ: Импорт для parse_mode
+from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault
 from loguru import logger
@@ -108,9 +108,8 @@ async def main() -> None:
 
     storage = MemoryStorage()
 
-    # --- ИЗМЕНЕНИЕ: Используем новый синтаксис для установки parse_mode ---
+    # --- ИЗМЕНЕНИЕ: Используем DefaultBotProperties для установки parse_mode глобально ---
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
-
     dp = Dispatcher(storage=storage)
 
     # Регистрация middleware для интернационализации
