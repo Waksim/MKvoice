@@ -36,9 +36,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const hasText = textInput.value.trim().length > 0;
 
         // Включаем/выключаем главную кнопку Telegram
+        // Кнопка уже видима, мы только управляем ее состоянием 'enabled'/'disabled'
         if (hasText) {
             tg.MainButton.enable();
-            tg.MainButton.show();
         } else {
             tg.MainButton.disable();
         }
@@ -89,7 +89,6 @@ document.addEventListener('DOMContentLoaded', function () {
             // Официальный метод отправки данных
             tg.sendData(dataToSend);
 
-            // --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: НЕ ЗАКРЫВАЕМ ПРИЛОЖЕНИЕ САМОСТОЯТЕЛЬНО ---
             // Telegram закроет его автоматически после успешной отправки.
             // tg.close();
 
@@ -101,15 +100,20 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Инициализация и настройка обработчиков ---
 
-    // 5. Конфигурируем и показываем главную кнопку Telegram
+    // 5. Конфигурируем главную кнопку Telegram
     tg.MainButton.setText('Send Text');
     tg.MainButton.color = '#2ea6ff';
     tg.MainButton.textColor = '#ffffff';
 
+    // --- ИЗМЕНЕНИЕ: Показываем кнопку один раз при инициализации.
+    // Это гарантирует, что компонент будет отрисован и готов к работе.
+    tg.MainButton.show();
+
+
     // 6. Устанавливаем обработчики событий для кнопок
     textInput.addEventListener('input', () => {
-        updateAllButtonsState(); // Мгновенно обновляем состояние кнопок
-        saveState();            // Сохраняем состояние с задержкой
+        // Убрали дублирующий вызов updateAllButtonsState(), так как он есть в saveState
+        saveState();
     });
 
     pasteBtn.addEventListener('click', () => {
