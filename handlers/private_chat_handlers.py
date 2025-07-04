@@ -8,110 +8,70 @@ This file includes handlers for private chats:
 """
 
 import asyncio
-import os
-import chardet
-import sqlite3
 import json
+import os
 from collections import deque
 from pathlib import Path
+from typing import Callable
 
-from aiogram import Router, F, Bot
+import chardet
+from aiogram import Bot, F, Router
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
+from aiogram.types import (CallbackQuery, InlineKeyboardButton,
+                           InlineKeyboardMarkup, Message, WebAppInfo)
 from loguru import logger
 
-
+from config import (ADMIN_ID, AUDIO_FOLDER, AVAILABLE_LANGUAGES, LOG_FILE,
+                    MAX_MESSAGE_LENGTH, WEBAPP_URL)
 from filters.chat_type import ChatTypeFilter
-from utils.i18n import get_translator, get_user_lang, set_user_lang
-from utils.text_extraction import extract_text_from_url_static, extract_text_from_url_dynamic
-from utils.text_to_speech import synthesize_text_to_audio_edge
-from utils.document_parsers import parse_docx, parse_fb2, parse_epub
-from utils.user_settings import get_user_settings, save_user_chunk_size, save_user_speed
 from states import SettingsState
-
-from config import AUDIO_FOLDER, LOG_FILE, ADMIN_ID, AVAILABLE_LANGUAGES, MAX_MESSAGE_LENGTH, TOKEN, WEBAPP_URL
-from project_structure.paths import DATABASE_PATH
+from utils.document_parsers import parse_docx, parse_epub, parse_fb2
+from utils.i18n import get_translator, get_user_lang, set_user_lang
+from utils.text_extraction import (extract_text_from_url_dynamic,
+                                   extract_text_from_url_static)
+from utils.text_to_speech import synthesize_text_to_audio_edge
+from utils.user_settings import get_user_settings, save_user_chunk_size, save_user_speed
 
 private_router = Router()
 private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 
 
-@private_router.message(Command('start'))
-async def cmd_start(message: Message, _: callable):
+# ===================== Web App Handlers =====================
+
+@private_router.message(F.web_app_data)
+async def handle_web_app_data(message: Message, _: Callable) -> None:
     """
-    /start command handler in a private chat.
-    Sends a greeting and initial help information.
+    Handles data received from the Telegram Web App.
+    This handler now correctly captures web_app_data due to the fix in the handle_text handler.
     """
     user_id = message.from_user.id
-    lang_code = get_user_lang(user_id)
-    translator = get_translator(lang_code)
-    __ = translator.gettext
+    logger.info(f"User {user_id} sent data from Web App.")
+    logger.debug(f"RAW web_app_data from user {user_id}: {message.web_app_data.data}")
 
-    logger.info(f"User {user_id} started the bot in private chat.")
-    help_text = _(
-        "👋 Hi! I can help you convert text to speech in various ways.\n\n"
-        "🔹 <b>What I can do:</b>\n"
-        "- Send me a text message to synthesize speech.\n"
-        "- Send a link to a website to extract text and synthesize it.\n"
-        "- Send a file (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) to extract text and synthesize it.\n"
-        "- Add me to a group chat and use the command <b>/vv help</b> to see how to work with me in groups.\n\n"
-        "📄 <b>Available commands:</b>\n"
-        "<b>/help</b> - Show help\n"
-        "<b>/change_lang</b> - Change interface language\n"
-        "<b>/webapp</b> - Open web interface for large texts\n\n"
-        "❓ <b>Questions or suggestions?</b>\n"
-        "Contact the bot administrator @maksenro.\n\n"
-        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
-    )
-    await message.answer(help_text, parse_mode='HTML')
+    try:
+        data = json.loads(message.web_app_data.data)
+        text_to_speak = data.get("text")
+
+        if not text_to_speak or not isinstance(text_to_speak, str):
+            logger.warning(f"Invalid or empty data structure from TWA for user {user_id}: {data}")
+            await message.answer(_("Received invalid or empty data from the web app. Please try again."))
+            return
+
+        logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
+        await message.answer(_("Received your text from the web app. Starting synthesis..."))
+        await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
+
+    except json.JSONDecodeError:
+        logger.error(f"JSONDecodeError from TWA for user {user_id}: {message.web_app_data.data}")
+        await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
+    except Exception as e:
+        logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
+        await message.answer(_("An unexpected error occurred while processing your request: {error}").format(error=str(e)))
 
 
-@private_router.message(Command('help'))
-async def cmd_help(message: Message, _: callable):
-    """
-    /help command handler in a private chat.
-    Sends help info about available bot commands and usage.
-    """
-    help_text = _(
-        "📖 <b>Available commands:</b>\n"
-        "/start - Begin interaction with the bot\n"
-        "/help - Show this message\n"
-        "/change_lang - Change interface language\n"
-        "/webapp - Open web interface for large texts\n"
-        "\n"
-        "🤖 <b>Bot capabilities:</b>\n"
-        "- Send text messages, and the bot will synthesize them using text-to-speech.\n"
-        "- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> formats, "
-        "and the bot will extract and synthesize them.\n"
-        "- Send links to web pages, and the bot will extract and synthesize the text.\n\n"
-        "📂 <b>Supported formats:</b>\n"
-        "- Text messages: any text\n"
-        "- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
-        "- Links: HTTP/HTTPS\n\n"
-        "⚙️ <b>Settings:</b>\n"
-        "- Use <b>/change_lang</b> command to change the interface language.\n"
-        "- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n\n"
-        "👥 <b>Use in groups:</b>\n"
-        "- Add the bot to a group.\n"
-        "- Grant it the following permissions:\n"
-        "  • Read messages\n"
-        "  • Send messages\n"
-        "  • Manage messages\n\n"
-        "- <b>Available commands in groups:</b>\n"
-        # ВАЖНО: заменяем <text> и <link> на <text> и <link>:
-        "  • /vv <text> - Synthesize the provided text.\n"
-        "  • /vv <link> - Extract text from the link and synthesize it.\n"
-        "  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n\n"
-        "❓ <b>Questions or suggestions?</b>\n"
-        "Contact the bot administrator @maksenro.\n\n"
-        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
-    )
-    await message.answer(help_text, parse_mode='HTML')
-
-# ===================== Web App Handlers =====================
 @private_router.message(Command('webapp'))
-async def cmd_webapp(message: Message, _: callable):
+async def cmd_webapp(message: Message, _: Callable) -> None:
     """
     /webapp command handler. Sends a message with a button to open the TWA.
     """
@@ -132,36 +92,87 @@ async def cmd_webapp(message: Message, _: callable):
     )
 
 
-@private_router.message(F.web_app_data)
-async def handle_web_app_data(message: Message, _: callable):
+# ===================== Standard Command Handlers =====================
+
+@private_router.message(Command('start'))
+async def cmd_start(message: Message, _: Callable) -> None:
     """
-    Handles data received from the Telegram Web App.
+    /start command handler in a private chat.
+    Sends a greeting and initial help information.
     """
-    logger.info(f"Received data from Web App for user {message.from_user.id}")
-    try:
-        data = json.loads(message.web_app_data.data)
-        text_to_speak = data.get("text")
+    user_id = message.from_user.id
+    lang_code = get_user_lang(user_id)
+    translator = get_translator(lang_code)
+    __ = translator.gettext
 
-        if not text_to_speak or not isinstance(text_to_speak, str):
-            await message.answer(_("Received invalid data from the web app. Please try again."))
-            logger.warning(f"Invalid data from TWA: {message.web_app_data.data}")
-            return
+    logger.info(f"User {user_id} started the bot in private chat.")
+    help_text = __(
+        "👋 Hi! I can help you convert text to speech in various ways.\n\n"
+        "🔹 <b>What I can do:</b>\n"
+        "- Send me a text message to synthesize speech.\n"
+        "- Send a link to a website to extract text and synthesize it.\n"
+        "- Send a file (<code>.docx</code>, <code>.fb2</code>, <code>.epub</code>) to extract text and synthesize it.\n"
+        "- Add me to a group chat and use the command <b>/vv help</b> to see how to work with me in groups.\n\n"
+        "📄 <b>Available commands:</b>\n"
+        "<b>/help</b> - Show help\n"
+        "<b>/change_lang</b> - Change interface language\n"
+        "<b>/settings</b> - Configure TTS options (chunk size, speed)\n"
+        "<b>/webapp</b> - Open web interface for large texts\n\n"
+        "❓ <b>Questions or suggestions?</b>\n"
+        "Contact the bot administrator @maksenro.\n\n"
+        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+    )
+    await message.answer(help_text, parse_mode='HTML')
 
-        await message.answer(_("Received your text from the web app. Starting synthesis..."))
-        await synthesize_text_to_audio_edge(text_to_speak, str(message.from_user.id), message, logger, _)
 
-    except json.JSONDecodeError:
-        await message.answer(_("Failed to parse data from the web app."))
-        logger.error(f"JSONDecodeError from TWA for user {message.from_user.id}: {message.web_app_data.data}")
-    except Exception as e:
-        await message.answer(_("An error occurred while processing your request: {error}").format(error=str(e)))
-        logger.error(f"Error processing TWA data for user {message.from_user.id}: {e}")
+@private_router.message(Command('help'))
+async def cmd_help(message: Message, _: Callable) -> None:
+    """
+    /help command handler in a private chat.
+    Sends help info about available bot commands and usage.
+    """
+    help_text = _(
+        "📖 <b>Available commands:</b>\n"
+        "/start - Begin interaction with the bot\n"
+        "/help - Show this message\n"
+        "/change_lang - Change interface language\n"
+        "/settings - Configure TTS options (chunk size, speed)\n"
+        "/webapp - Open web interface for large texts\n"
+        "\n"
+        "🤖 <b>Bot capabilities:</b>\n"
+        "- Send text messages, and the bot will synthesize them using text-to-speech.\n"
+        "- Send documents in <code>.docx</code>, <code>.fb2</code>, <code>.epub</code> formats, "
+        "and the bot will extract and synthesize them.\n"
+        "- Send links to web pages, and the bot will extract and synthesize the text.\n\n"
+        "📂 <b>Supported formats:</b>\n"
+        "- Text messages: any text\n"
+        "- Documents: <code>.docx</code>, <code>.fb2</code>, <code>.epub</code>\n"
+        "- Links: HTTP/HTTPS\n\n"
+        "⚙️ <b>Settings:</b>\n"
+        "- Use <b>/change_lang</b> command to change the interface language.\n"
+        "- Use <b>/settings</b> command to adjust chunk size and TTS speed.\n"
+        "- The bot supports multiple languages: English, Russian, Ukrainian, Chinese.\n\n"
+        "👥 <b>Use in groups:</b>\n"
+        "- Add the bot to a group.\n"
+        "- Grant it the following permissions:\n"
+        "  • Read messages\n"
+        "  • Send messages\n"
+        "  • Manage messages\n\n"
+        "- <b>Available commands in groups:</b>\n"
+        "  • /vv <text> - Synthesize the provided text.\n"
+        "  • /vv <link> - Extract text from the link and synthesize it.\n"
+        "  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n\n"
+        "❓ <b>Questions or suggestions?</b>\n"
+        "Contact the bot administrator @maksenro.\n\n"
+        "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
+    )
+    await message.answer(help_text, parse_mode='HTML')
 
 
 # ===================== Settings Handlers ======================
 
 @private_router.message(Command('settings'))
-async def cmd_settings(message: Message, _: callable):
+async def cmd_settings(message: Message, _: Callable) -> None:
     """
     /settings command handler in a private chat.
     Shows an inline keyboard to update user settings (chunk size or TTS speed).
@@ -174,7 +185,7 @@ async def cmd_settings(message: Message, _: callable):
 
 
 @private_router.callback_query(F.data == "settings:set_chunk")
-async def cb_set_chunk_size(callback_query: CallbackQuery, _: callable, state: FSMContext):
+async def cb_set_chunk_size(callback_query: CallbackQuery, _: Callable, state: FSMContext) -> None:
     """
     Inline button handler for "Set chunk size".
     Prompts the user to enter a number between 5000 and 80000.
@@ -186,14 +197,13 @@ async def cb_set_chunk_size(callback_query: CallbackQuery, _: callable, state: F
 
 
 @private_router.message(SettingsState.waiting_for_chunk_size, F.text)
-async def handle_chunk_size_input(message: Message, _: callable, state: FSMContext):
+async def handle_chunk_size_input(message: Message, _: Callable, state: FSMContext) -> None:
     """
     Handles user input for chunk size while in FSM state waiting_for_chunk_size.
     """
     try:
         chunk_val = int(message.text.strip())
         if 5000 <= chunk_val <= 80000:
-            # Save to DB
             save_user_chunk_size(message.from_user.id, chunk_val)
             await message.answer(_("Chunk size updated to: {size}").format(size=chunk_val))
             await state.clear()
@@ -204,7 +214,7 @@ async def handle_chunk_size_input(message: Message, _: callable, state: FSMConte
 
 
 @private_router.callback_query(F.data == "settings:set_speed")
-async def cb_set_speed(callback_query: CallbackQuery, _: callable):
+async def cb_set_speed(callback_query: CallbackQuery, _: Callable) -> None:
     """
     Inline button handler for "Set TTS speed".
     Shows a second inline keyboard with possible speed options.
@@ -221,21 +231,21 @@ async def cb_set_speed(callback_query: CallbackQuery, _: callable):
 
 
 @private_router.callback_query(F.data.startswith("speed:"))
-async def cb_speed_value(callback_query: CallbackQuery, _: callable):
+async def cb_speed_value(callback_query: CallbackQuery, _: Callable) -> None:
     """
     Inline button handler for a specific speed value, e.g. speed:+25%.
     Saves the speed to DB and notifies the user.
     """
-    speed_val = callback_query.data.split("speed:")[1]  # e.g. "+25%"
+    speed_val = callback_query.data.split("speed:")[1]
     save_user_speed(callback_query.from_user.id, speed_val)
 
     await callback_query.message.answer(_("Speed updated to: {spd}").format(spd=speed_val))
     await callback_query.answer()
 
 
-# ===================== Existing language change handlers ======================
+# ===================== Language change handlers ======================
 @private_router.message(Command('change_lang'))
-async def cmd_change_lang(message: Message, _: callable):
+async def cmd_change_lang(message: Message, _: Callable) -> None:
     """
     Command /change_lang to show available languages via inline keyboard.
     """
@@ -254,7 +264,7 @@ async def cmd_change_lang(message: Message, _: callable):
 
 
 @private_router.callback_query(F.data.startswith("change_lang:"))
-async def process_change_lang(callback_query: CallbackQuery, _: callable):
+async def process_change_lang(callback_query: CallbackQuery, _: Callable) -> None:
     lang_code = callback_query.data.split(":")[1]
 
     if lang_code not in AVAILABLE_LANGUAGES:
@@ -268,12 +278,13 @@ async def process_change_lang(callback_query: CallbackQuery, _: callable):
 
     await callback_query.answer()
     await callback_query.message.edit_reply_markup()
-    await callback_query.message.reply(_("Language updated!"))
+    await callback_query.message.reply(__("Language updated!"))
     logger.info(f"User {callback_query.from_user.id} updated language to {lang_code}.")
 
 
+# ===================== Other handlers ======================
 @private_router.message(Command(commands=["s", "S", "ы", "Ы"]))
-async def cmd_s(message: Message, _: callable):
+async def cmd_s(message: Message, _: Callable) -> None:
     """
     An admin-only command to retrieve the last lines of the log file.
     """
@@ -297,80 +308,58 @@ async def cmd_s(message: Message, _: callable):
             await message.reply(_("No log messages."))
             return
 
-        messages_list = []
+        # Splitting logic remains the same
         current_message = ""
         for line in last_lines.splitlines(keepends=True):
             if len(current_message) + len(line) > MAX_MESSAGE_LENGTH:
-                messages_list.append(current_message)
+                await message.answer(f"<pre>{current_message}</pre>")
                 current_message = line
             else:
                 current_message += line
         if current_message:
-            messages_list.append(current_message)
+            await message.answer(f"<pre>{current_message}</pre>")
 
-        for msg in messages_list:
-            await message.reply(_("📝 Last log lines:\n") + msg, parse_mode='HTML')
-            await asyncio.sleep(0.1)
         logger.info(f"Admin {message.from_user.id} retrieved last log lines.")
 
     except Exception as e:
-        logger.error(f"Failed to read log file: {e}")
+        logger.error(f"Failed to read log file: {e}", exc_info=True)
         await message.reply(_("Failed to read log file: {error}").format(error=str(e)))
 
 
 @private_router.message(F.text.regexp(r'^https?://'))
-async def handle_url(message: Message, _: callable):
+async def handle_url(message: Message, _: Callable) -> None:
     """
     Handles a URL in a private chat. Tries static extraction,
     then dynamic extraction, then synthesizes the extracted text.
     """
     url = message.text
     try:
+        await message.answer(_("Received a link. Starting text extraction..."))
         text_page = await extract_text_from_url_static(url)
         if len(text_page) < 200:
+            await message.answer(_("Static extraction yielded little text. Trying dynamic extraction (this may take a moment)..."))
             text_page = await extract_text_from_url_dynamic(url)
         if not text_page.strip():
-            await message.reply(_("Could not extract text."))
-            logger.warning(f"User {message.from_user.id} sent URL but no text extracted.")
+            await message.reply(_("Could not extract text from the link."))
+            logger.warning(f"User {message.from_user.id} sent URL but no text extracted: {url}")
             return
 
-        await synthesize_text_to_audio_edge(
-            text_page,
-            str(message.from_user.id),
-            message,
-            logger,
-            _
-        )
+        await synthesize_text_to_audio_edge(text_page, str(message.from_user.id), message, logger, _)
         logger.info(f"Processed URL from user {message.from_user.id}: {url}")
 
     except Exception as e:
         await message.reply(_("Failed to process URL: {error}").format(error=str(e)))
-        logger.error(f"Failed to process URL from user {message.from_user.id}: {url} | Error: {e}")
-
-
-@private_router.message(F.text)
-async def handle_text(message: Message, _: callable):
-    """
-    Handles any plain text sent by the user. Synthesizes the text to speech.
-    """
-    text = message.text
-    if not text.strip():
-        await message.reply(_("Empty text."))
-        logger.warning(f"User {message.from_user.id} sent empty text.")
-        return
-
-    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
-    logger.info(f"Voiced text from user {message.from_user.id}: {text}")
+        logger.error(f"Failed to process URL from user {message.from_user.id}: {url} | Error: {e}", exc_info=True)
 
 
 @private_router.message(F.document)
-async def handle_file(message: Message, _: callable):
+async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
     """
     Handles documents in private chat. Accepts .docx, .fb2, .epub, or text with encoding detection.
     Extracts text and synthesizes it.
     """
-
-    bot = Bot(token=TOKEN)
+    if not message.document:
+        return
 
     if message.document.file_size > 20 * 1024 * 1024:
         await message.reply(_("File is too large (max 20 MB)."))
@@ -378,23 +367,22 @@ async def handle_file(message: Message, _: callable):
         return
 
     file_extension = os.path.splitext(message.document.file_name)[1].lower()
-    local_file_path = os.path.join(AUDIO_FOLDER, message.document.file_name)
+    unique_filename = f"{message.from_user.id}_{message.document.file_unique_id}{file_extension}"
+    local_file_path = os.path.join(AUDIO_FOLDER, unique_filename)
 
     try:
-        # Correct approach in Aiogram 3.x
+        await message.answer(_("Received file `{file_name}`. Downloading and processing...").format(file_name=message.document.file_name), parse_mode="MarkdownV2")
         file_info = await bot.get_file(message.document.file_id)
-        await bot.download_file(file_info.file_path, local_file_path)
-        logger.info(f"Downloaded file from user {message.from_user.id}: {message.document.file_name}")
+        await bot.download_file(file_info.file_path, destination=local_file_path)
+        logger.info(f"Downloaded file from user {message.from_user.id}: {unique_filename}")
 
-        # Detect encoding
         with open(local_file_path, 'rb') as f:
             raw_data = f.read()
         detected = chardet.detect(raw_data)
         encoding = detected['encoding']
-        confidence = detected['confidence']
-        logger.info(f"Detected encoding for {message.document.file_name}: {encoding} with confidence {confidence}")
+        logger.info(f"Detected encoding for {unique_filename}: {encoding} with confidence {detected['confidence']}")
 
-        # Extract text
+        text = ""
         if file_extension == ".docx":
             text = parse_docx(local_file_path)
         elif file_extension == ".fb2":
@@ -402,27 +390,40 @@ async def handle_file(message: Message, _: callable):
         elif file_extension == ".epub":
             text = parse_epub(local_file_path)
         else:
-            if encoding is None:
-                encoding = 'utf-8'
+            encoding = encoding or 'utf-8'
             with open(local_file_path, "r", encoding=encoding, errors='replace') as txt_f:
                 text = txt_f.read()
 
-        # Remove file from local storage
-        os.remove(local_file_path)
-        logger.info(f"Processed and removed file {local_file_path}")
-
         if not text.strip():
             await message.reply(_("Could not extract text from the document."))
-            logger.warning(f"No text extracted from document {message.document.file_name} by user {message.from_user.id}.")
+            logger.warning(f"No text extracted from {unique_filename} by user {message.from_user.id}.")
             return
 
-        # Synthesize text
         await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
-        logger.info(f"Synthesized document for user {message.from_user.id}: {message.document.file_name}")
+        logger.info(f"Synthesized document for user {message.from_user.id}: {unique_filename}")
 
     except Exception as e:
-        logger.error(f"Failed to process document from user {message.from_user.id}: {e}")
+        logger.error(f"Failed to process document from user {message.from_user.id}: {e}", exc_info=True)
         await message.reply(_("Failed to process document: {error}").format(error=str(e)))
+    finally:
         if os.path.exists(local_file_path):
             os.remove(local_file_path)
-            logger.info(f"Removed corrupted file {local_file_path}")
+            logger.info(f"Removed temporary file {local_file_path}")
+
+
+# --- ИЗМЕНЕНИЕ: Добавлен фильтр F.web_app_data.is_(None) ---
+# Этот фильтр гарантирует, что данный хэндлер не будет реагировать на сообщения,
+# пришедшие из Web App, даже если в них есть текстовое поле.
+@private_router.message(F.text, F.web_app_data.is_(None))
+async def handle_text(message: Message, _: Callable) -> None:
+    """
+    Handles any plain text sent by the user. Synthesizes the text to speech.
+    IMPORTANT: This handler now explicitly ignores messages with web_app_data.
+    """
+    text = message.text
+    if not text or not text.strip():
+        # This check prevents reacting to empty messages, but it is good practice
+        return
+
+    await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
+    logger.info(f"Voiced text from user {message.from_user.id}: {text[:100]}...")

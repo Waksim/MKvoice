@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MKvoice Text Input</title>
-    <link rel="stylesheet" href="style.css">
+    <!-- ИЗМЕНЕНИЕ: Добавляем GET-параметр для сброса кеша. Меняйте v=1.0.1 на v=1.0.2 при следующих изменениях -->
+    <link rel="stylesheet" href="style.css?v=1.0.1">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
@@ -27,6 +28,7 @@
             <button id="send-btn">Send to Bot</button>
         </div>
     </div>
-    <script src="script.js"></script>
+    <!-- ИЗМЕНЕНИЕ: Добавляем GET-параметр для сброса кеша -->
+    <script src="script.js?v=1.0.1"></script>
 </body>
 </html>
