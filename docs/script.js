@@ -108,7 +108,7 @@ document.addEventListener('DOMContentLoaded', function () {
         tg.MainButton.showProgress();
 
         try {
-            const backendUrl = 'http://62.113.115.33:8000/process-text'; // ВАШ АДРЕС СЕРВЕРА
+            const backendUrl = 'http://89.110.119.205:8000/process-text'; // ВАШ АДРЕС СЕРВЕРА
             logToPage(`Sending POST request to ${backendUrl}`);
 
             const response = await fetch(backendUrl, {
