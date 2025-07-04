@@ -1,25 +1,22 @@
-# Используем официальный образ Python
+# Используем тот же базовый образ, что и у бота
 FROM python:3.13-slim
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы зависимостей
+# 1. Копируем ТОЛЬКО файлы зависимостей
 COPY requirements.txt .
+COPY backend/requirements.txt ./backend/requirements.txt
 
-# Устанавливаем зависимости
-# Обновляем pip и устанавливаем playwright с зависимостями
+# 2. Устанавливаем зависимости (этот слой будет кэшироваться)
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
+    pip install --no-cache-dir -r backend/requirements.txt && \
     playwright install && \
     playwright install-deps
 
-# Копируем все файлы проекта в контейнер
+# 3. Копируем все остальные файлы проекта
 COPY . .
 
-# Запускаем скрипт компиляции переводов
-RUN chmod +x ./locales/compile_translations.sh && \
-    ./locales/compile_translations.sh
-
-# Команда для запуска бота
-CMD ["python", "main.py"]
+# Команда для запуска uvicorn сервера
+CMD ["uvicorn", "backend.backend_server:app", "--host", "0.0.0.0", "--port", "8000"]
