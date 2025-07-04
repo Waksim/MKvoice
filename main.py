@@ -108,7 +108,7 @@ async def main() -> None:
 
     storage = MemoryStorage()
 
-    # --- ИЗМЕНЕНИЕ: Используем DefaultBotProperties для установки parse_mode глобально ---
+    # --- Используем DefaultBotProperties для установки parse_mode глобально ---
     bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
     dp = Dispatcher(storage=storage)
 
@@ -133,6 +133,7 @@ async def main() -> None:
     except Exception as e:
         logger.error(f"An error occurred during polling: {e}")
     finally:
+        await bot.session.close()
         logger.info("Bot stopped.")
 
 
