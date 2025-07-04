@@ -16,6 +16,8 @@ from typing import Callable
 
 import chardet
 from aiogram import Bot, F, Router
+# ИЗМЕНЕНИЕ: Добавлен импорт ContentType
+from aiogram.enums import ContentType
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
@@ -39,7 +41,8 @@ private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 
 # ===================== Web App Handler (MUST BE FIRST) =====================
 
-@private_router.message(F.web_app_data)
+# ИЗМЕНЕНИЕ: Фильтр заменен на более надежный и явный
+@private_router.message(F.content_type == ContentType.WEB_APP_DATA)
 async def handle_web_app_data(message: Message, _: Callable) -> None:
     """
     Handles data received from the Telegram Web App.
@@ -197,7 +200,7 @@ async def handle_chunk_size_input(message: Message, _: Callable, state: FSMConte
     try:
         chunk_val = int(message.text.strip())
         if 5000 <= chunk_val <= 80000:
-            await save_user_chunk_size(message.from_user.id, chunk_val)  # Добавлен await
+            await save_user_chunk_size(message.from_user.id, chunk_val)
             await message.answer(_("Chunk size updated to: {size}").format(size=chunk_val))
             await state.clear()
         else:
@@ -230,7 +233,7 @@ async def cb_speed_value(callback_query: CallbackQuery, _: Callable) -> None:
     Saves the speed to DB and notifies the user.
     """
     speed_val = callback_query.data.split("speed:")[1]
-    await save_user_speed(callback_query.from_user.id, speed_val)  # Добавлен await
+    await save_user_speed(callback_query.from_user.id, speed_val)
 
     await callback_query.message.answer(_("Speed updated to: {spd}").format(spd=speed_val))
     await callback_query.answer()
@@ -265,7 +268,7 @@ async def process_change_lang(callback_query: CallbackQuery, _: Callable) -> Non
         logger.warning(f"User {callback_query.from_user.id} tried to set unsupported language: {lang_code}")
         return
 
-    await set_user_lang(callback_query.from_user.id, lang_code)  # Добавлен await
+    await set_user_lang(callback_query.from_user.id, lang_code)
     translator = get_translator(lang_code)
     __ = translator.gettext
 
