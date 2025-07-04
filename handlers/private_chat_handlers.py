@@ -43,23 +43,24 @@ private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 async def handle_web_app_data(message: Message, _: Callable) -> None:
     """
     Handles data received from the Telegram Web App.
-    This handler now correctly captures web_app_data due to the fix in the handle_text handler.
+    This is the dedicated handler for Web App updates.
     """
     user_id = message.from_user.id
-    logger.info(f"User {user_id} sent data from Web App.")
-    logger.debug(f"RAW web_app_data from user {user_id}: {message.web_app_data.data}")
+    logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
+
+    # --- ИЗМЕНЕНИЕ: Немедленно отвечаем пользователю, что данные получены ---
+    await message.answer(_("Received your text from the web app. Starting processing..."))
 
     try:
         data = json.loads(message.web_app_data.data)
         text_to_speak = data.get("text")
 
-        if not text_to_speak or not isinstance(text_to_speak, str):
-            logger.warning(f"Invalid or empty data structure from TWA for user {user_id}: {data}")
-            await message.answer(_("Received invalid or empty data from the web app. Please try again."))
+        if not text_to_speak or not isinstance(text_to_speak, str) or not text_to_speak.strip():
+            logger.warning(f"Invalid or empty text from TWA for user {user_id}: {data}")
+            await message.answer(_("Received empty text from the web app. Please try again."))
             return
 
         logger.info(f"Successfully parsed text from TWA for user {user_id}. Length: {len(text_to_speak)}.")
-        await message.answer(_("Received your text from the web app. Starting synthesis..."))
         await synthesize_text_to_audio_edge(text_to_speak, str(user_id), message, logger, _)
 
     except json.JSONDecodeError:
@@ -67,7 +68,7 @@ async def handle_web_app_data(message: Message, _: Callable) -> None:
         await message.answer(_("Failed to parse data from the web app. The data format is incorrect."))
     except Exception as e:
         logger.error(f"Error processing TWA data for user {user_id}: {e}", exc_info=True)
-        await message.answer(_("An unexpected error occurred while processing your request: {error}").format(error=str(e)))
+        await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
 
 
 @private_router.message(Command('webapp'))
@@ -95,18 +96,14 @@ async def cmd_webapp(message: Message, _: Callable) -> None:
 # ===================== Standard Command Handlers =====================
 
 @private_router.message(Command('start'))
-async def cmd_start(message: Message, _: Callable) -> None:
-    """
-    /start command handler in a private chat.
-    Sends a greeting and initial help information.
-    """
+async def cmd_start(message: Message, _: Callable):
     user_id = message.from_user.id
     lang_code = get_user_lang(user_id)
     translator = get_translator(lang_code)
     __ = translator.gettext
 
     logger.info(f"User {user_id} started the bot in private chat.")
-    help_text = __(
+    help_text = _(
         "👋 Hi! I can help you convert text to speech in various ways.\n\n"
         "🔹 <b>What I can do:</b>\n"
         "- Send me a text message to synthesize speech.\n"
@@ -410,16 +407,18 @@ async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
             os.remove(local_file_path)
             logger.info(f"Removed temporary file {local_file_path}")
 
-
-# --- ИЗМЕНЕНИЕ: Добавлен фильтр F.web_app_data.is_(None) ---
-# Этот фильтр гарантирует, что данный хэндлер не будет реагировать на сообщения,
-# пришедшие из Web App, даже если в них есть текстовое поле.
-@private_router.message(F.text, F.web_app_data.is_(None))
+# --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
+@private_router.message(F.text)
 async def handle_text(message: Message, _: Callable) -> None:
     """
     Handles any plain text sent by the user. Synthesizes the text to speech.
     IMPORTANT: This handler now explicitly ignores messages with web_app_data.
     """
+    # Диагностическое логирование
+    if message.web_app_data:
+        logger.warning(f"handle_text was mistakenly triggered by a Web App message. Ignoring. Data: {message.web_app_data.data}")
+        return
+
     text = message.text
     if not text or not text.strip():
         # This check prevents reacting to empty messages, but it is good practice
