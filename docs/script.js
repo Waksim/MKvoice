@@ -1,3 +1,4 @@
+// ============================= FILE: docs/script.js =============================
 document.addEventListener('DOMContentLoaded', function () {
     // 1. Проверяем, что объект Telegram Web App доступен
     if (!window.Telegram || !window.Telegram.WebApp) {
@@ -76,28 +77,29 @@ document.addEventListener('DOMContentLoaded', function () {
      * Функция отправки данных боту.
      */
     function sendData() {
-        const textValue = textInput.value.trim();
-        if (textValue.length === 0) {
-            tg.showAlert('Text cannot be empty!');
-            return;
-        }
-
-        try {
-            const dataToSend = JSON.stringify({ text: textValue });
-            console.log("Sending data to bot:", dataToSend);
-
-            // Официальный метод отправки данных
-            tg.sendData(dataToSend);
-
-            // --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ: НЕ ЗАКРЫВАЕМ ПРИЛОЖЕНИЕ САМОСТОЯТЕЛЬНО ---
-            // Telegram закроет его автоматически после успешной отправки.
-            // tg.close();
-
-        } catch (error) {
-            console.error("Error during sending data:", error);
-            tg.showAlert(`An error occurred: ${error.message}`);
-        }
+    console.log("SendData called");
+    const textValue = textInput.value.trim();
+    if (textValue.length === 0) {
+        tg.showAlert('Text cannot be empty!');
+        return;
     }
+
+    try {
+        const dataToSend = JSON.stringify({ text: textValue });
+        console.log("Sending data to bot:", dataToSend);
+
+        // --- Официальный метод отправки данных ---
+        tg.sendData(dataToSend);
+
+        // --- Закрываем Web App после успешной отправки ---
+        tg.close();
+
+    } catch (error) {
+        console.error("Error during sending data:", error);
+        tg.showAlert(`An error occurred: ${error.message}`);
+    }
+}
+
 
     // --- Инициализация и настройка обработчиков ---
 
