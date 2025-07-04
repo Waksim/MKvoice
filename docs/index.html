@@ -1,34 +1,30 @@
+<!-- docs/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MKvoice Text Input</title>
-    <!-- ИЗМЕНЕНИЕ: Версия обновлена до 1.0.2 для сброса кеша -->
-    <link rel="stylesheet" href="style.css?v=1.0.2">
+    <!-- ИЗМЕНЕНИЕ: Версия обновлена до 1.0.3 для сброса кеша -->
+    <link rel="stylesheet" href="style.css?v=1.0.3">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
     <div class="container">
         <h1>Text-to-Speech Input</h1>
         <p>Enter or paste a large block of text below. The bot will synthesize it and send you the audio.</p>
-
-        <!-- Новая группа для Undo/Redo -->
         <div class="button-group utility-group">
             <button id="undo-btn">Undo</button>
             <button id="redo-btn">Redo</button>
         </div>
-
         <textarea id="text-input" placeholder="Paste your text here..."></textarea>
-
-        <!-- Основная группа кнопок -->
         <div class="button-group main-group">
             <button id="paste-btn">Paste</button>
             <button id="clear-btn">Clear</button>
             <button id="send-btn">Send to Bot</button>
         </div>
     </div>
-    <!-- ИЗМЕНЕНИЕ: Версия обновлена до 1.0.2 для сброса кеша -->
-    <script src="script.js?v=1.0.2"></script>
+    <!-- ИЗМЕНЕНИЕ: Версия обновлена до 1.0.3 для сброса кеша -->
+    <script src="script.js?v=1.0.3"></script>
 </body>
 </html>
