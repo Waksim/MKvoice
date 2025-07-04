@@ -6,12 +6,13 @@ We also ensure that the Dispatcher uses MemoryStorage to handle user states for 
 
 import asyncio
 import sqlite3
+import json
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import BotCommand, BotCommandScopeDefault
+from aiogram.types import BotCommand, BotCommandScopeDefault, WebAppInfo
 from aiogram.fsm.storage.memory import MemoryStorage
 
-from config import TOKEN
+from config import TOKEN, WEBAPP_URL
 from middlewares.clear_state import ClearStateMiddleware
 from middlewares.i18n_middleware import I18nMiddleware
 from project_structure.paths import DATABASE_PATH
@@ -64,7 +65,8 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="start", description="Start the bot"),
         BotCommand(command="help", description="Show help"),
         BotCommand(command="change_lang", description="Change language"),
-        BotCommand(command="settings", description="User settings"),  # Our new command
+        BotCommand(command="settings", description="User settings"),
+        BotCommand(command="webapp", description="Open web app for large texts"), # <-- НОВАЯ КОМАНДА
     ]
     await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
 

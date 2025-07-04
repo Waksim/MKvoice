@@ -21,7 +21,7 @@ def get_user_settings(user_id: int) -> dict:
     if row is None:
         return {
             'chunk_size': 40000,  # default
-            'tts_speed': '+0%'    # default
+            'tts_speed': '+50%'    # default
         }
     else:
         return {

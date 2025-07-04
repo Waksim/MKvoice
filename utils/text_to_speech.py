@@ -55,6 +55,8 @@ async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message
     user_chunk_size = settings['chunk_size']
     user_speed = settings['tts_speed']  # e.g. '+25%' or '-50%', etc.
 
+    print(f"___SPEED___ {user_speed} ___")
+
     if not text.strip():
         logger.warning(_("Empty text for synthesis."))
         await message.reply(_("Could not synthesize: empty text."))

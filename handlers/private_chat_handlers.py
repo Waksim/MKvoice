@@ -11,13 +11,14 @@ import asyncio
 import os
 import chardet
 import sqlite3
+import json
 from collections import deque
 from pathlib import Path
 
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
-from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, WebAppInfo
 from loguru import logger
 
 
@@ -29,7 +30,7 @@ from utils.document_parsers import parse_docx, parse_fb2, parse_epub
 from utils.user_settings import get_user_settings, save_user_chunk_size, save_user_speed
 from states import SettingsState
 
-from config import AUDIO_FOLDER, LOG_FILE, ADMIN_ID, AVAILABLE_LANGUAGES, MAX_MESSAGE_LENGTH, TOKEN
+from config import AUDIO_FOLDER, LOG_FILE, ADMIN_ID, AVAILABLE_LANGUAGES, MAX_MESSAGE_LENGTH, TOKEN, WEBAPP_URL
 from project_structure.paths import DATABASE_PATH
 
 private_router = Router()
@@ -57,7 +58,8 @@ async def cmd_start(message: Message, _: callable):
         "- Add me to a group chat and use the command <b>/vv help</b> to see how to work with me in groups.\n\n"
         "📄 <b>Available commands:</b>\n"
         "<b>/help</b> - Show help\n"
-        "<b>/change_lang</b> - Change interface language\n\n"
+        "<b>/change_lang</b> - Change interface language\n"
+        "<b>/webapp</b> - Open web interface for large texts\n\n"
         "❓ <b>Questions or suggestions?</b>\n"
         "Contact the bot administrator @maksenro.\n\n"
         "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
@@ -76,6 +78,7 @@ async def cmd_help(message: Message, _: callable):
         "/start - Begin interaction with the bot\n"
         "/help - Show this message\n"
         "/change_lang - Change interface language\n"
+        "/webapp - Open web interface for large texts\n"
         "\n"
         "🤖 <b>Bot capabilities:</b>\n"
         "- Send text messages, and the bot will synthesize them using text-to-speech.\n"
@@ -96,9 +99,9 @@ async def cmd_help(message: Message, _: callable):
         "  • Send messages\n"
         "  • Manage messages\n\n"
         "- <b>Available commands in groups:</b>\n"
-        # ВАЖНО: заменяем <text> и <link> на &lt;text&gt; и &lt;link&gt;:
-        "  • /vv &lt;text&gt; - Synthesize the provided text.\n"
-        "  • /vv &lt;link&gt; - Extract text from the link and synthesize it.\n"
+        # ВАЖНО: заменяем <text> и <link> на <text> и <link>:
+        "  • /vv <text> - Synthesize the provided text.\n"
+        "  • /vv <link> - Extract text from the link and synthesize it.\n"
         "  • /vv (in reply to a message) - Synthesize text from the replied-to message.\n\n"
         "❓ <b>Questions or suggestions?</b>\n"
         "Contact the bot administrator @maksenro.\n\n"
@@ -106,6 +109,56 @@ async def cmd_help(message: Message, _: callable):
     )
     await message.answer(help_text, parse_mode='HTML')
 
+# ===================== Web App Handlers =====================
+@private_router.message(Command('webapp'))
+async def cmd_webapp(message: Message, _: callable):
+    """
+    /webapp command handler. Sends a message with a button to open the TWA.
+    """
+    if not WEBAPP_URL:
+        await message.answer(_("Web App is not configured. Please contact the administrator."))
+        logger.error("WEBAPP_URL is not set in the environment variables.")
+        return
+
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text=_("Open Text Input App"),
+            web_app=WebAppInfo(url=WEBAPP_URL)
+        )]
+    ])
+    await message.answer(
+        _("Click the button below to open the web app for entering large texts."),
+        reply_markup=keyboard
+    )
+
+
+@private_router.message(F.web_app_data)
+async def handle_web_app_data(message: Message, _: callable):
+    """
+    Handles data received from the Telegram Web App.
+    """
+    logger.info(f"Received data from Web App for user {message.from_user.id}")
+    try:
+        data = json.loads(message.web_app_data.data)
+        text_to_speak = data.get("text")
+
+        if not text_to_speak or not isinstance(text_to_speak, str):
+            await message.answer(_("Received invalid data from the web app. Please try again."))
+            logger.warning(f"Invalid data from TWA: {message.web_app_data.data}")
+            return
+
+        await message.answer(_("Received your text from the web app. Starting synthesis..."))
+        await synthesize_text_to_audio_edge(text_to_speak, str(message.from_user.id), message, logger, _)
+
+    except json.JSONDecodeError:
+        await message.answer(_("Failed to parse data from the web app."))
+        logger.error(f"JSONDecodeError from TWA for user {message.from_user.id}: {message.web_app_data.data}")
+    except Exception as e:
+        await message.answer(_("An error occurred while processing your request: {error}").format(error=str(e)))
+        logger.error(f"Error processing TWA data for user {message.from_user.id}: {e}")
+
+
+# ===================== Settings Handlers ======================
 
 @private_router.message(Command('settings'))
 async def cmd_settings(message: Message, _: callable):

@@ -1,0 +1,98 @@
+/* Apply a dark theme consistent with Telegram */
+:root {
+    --tg-theme-bg-color: #18222d;
+    --tg-theme-text-color: #ffffff;
+    --tg-theme-button-color: #2ea6ff;
+    --tg-theme-button-text-color: #ffffff;
+    --tg-theme-hint-color: #b1c3d5;
+    --tg-theme-secondary-bg-color: #232e3c;
+}
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen,
+        Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background-color: var(--tg-theme-bg-color, #18222d);
+    color: var(--tg-theme-text-color, #ffffff);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    padding: 20px;
+    box-sizing: border-box;
+    min-height: 100vh;
+}
+
+.container {
+    width: 100%;
+    max-width: 800px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+h1 {
+    font-size: 24px;
+    margin: 0;
+    text-align: center;
+    color: var(--tg-theme-text-color, #ffffff);
+}
+
+p {
+    font-size: 14px;
+    color: var(--tg-theme-hint-color, #b1c3d5);
+    text-align: center;
+    margin: 0;
+}
+
+textarea {
+    width: 100%;
+    height: 50vh; /* Takes up a large portion of the viewport height */
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid var(--tg-theme-secondary-bg-color, #232e3c);
+    background-color: var(--tg-theme-secondary-bg-color, #232e3c);
+    color: var(--tg-theme-text-color, #ffffff);
+    font-size: 16px;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+textarea:focus {
+    outline: none;
+    border-color: var(--tg-theme-button-color, #2ea6ff);
+}
+
+.button-group {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+}
+
+button {
+    flex-grow: 1;
+    padding: 12px 20px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+#paste-btn {
+    background-color: var(--tg-theme-secondary-bg-color, #232e3c);
+    color: var(--tg-theme-button-text-color, #ffffff);
+}
+
+#send-btn {
+    background-color: var(--tg-theme-button-color, #2ea6ff);
+    color: var(--tg-theme-button-text-color, #ffffff);
+}
+
+button:hover {
+    filter: brightness(1.1);
+}
+
+button:active {
+    filter: brightness(0.9);
+}
