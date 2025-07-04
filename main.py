@@ -3,61 +3,86 @@
 This file initializes the database, sets up the bot commands, and runs the bot.
 We also ensure that the Dispatcher uses MemoryStorage to handle user states for chunk size input.
 """
-
 import asyncio
 import sqlite3
-import json
+import sys
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import BotCommand, BotCommandScopeDefault, WebAppInfo
+from aiogram.client.default import DefaultBotProperties  # --- ИЗМЕНЕНИЕ: Импорт для parse_mode
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.types import BotCommand, BotCommandScopeDefault
+from loguru import logger
 
-from config import TOKEN, WEBAPP_URL
-from middlewares.clear_state import ClearStateMiddleware
+from config import TOKEN
+from handlers.group_chat_handlers import group_router
+from handlers.private_chat_handlers import private_router
 from middlewares.i18n_middleware import I18nMiddleware
 from project_structure.paths import DATABASE_PATH
-# from bot import bot  # Assumes you have a bot instance in bot.py
-from handlers.private_chat_handlers import private_router
-from handlers.group_chat_handlers import group_router
 from utils.i18n import get_translator
 
+# --- Правильная и ранняя настройка Loguru ---
+# Убираем стандартный обработчик и настраиваем свой
+logger.remove()
+# Логи уровня INFO и выше будут выводиться в консоль
+logger.add(sys.stderr, level="INFO")
+# Логи уровня DEBUG и выше будут записываться в файл
+logger.add("bot.log", level="DEBUG", rotation="10 MB", compression="zip")
 
-# ---- Make sure you have i18n middleware if you use _() everywhere ----
-# Example:
-# from middlewares.i18n_middleware import I18nMiddleware
 
-
-def init_db():
+def init_db() -> None:
     """
     Creates (or updates) the necessary tables in the database:
       - user_lang (stores user's interface language)
       - user_settings (stores chunk_size and tts_speed)
     """
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
+    logger.info("Initializing database...")
+    try:
+        conn = sqlite3.connect(DATABASE_PATH)
+        cursor = conn.cursor()
 
-    # Table for user language (if not already created)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_lang (
-            user_id INTEGER PRIMARY KEY,
-            lang_code TEXT NOT NULL
-        );
-    """)
+        # Table for user language
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS user_lang
+                       (
+                           user_id
+                           INTEGER
+                           PRIMARY
+                           KEY,
+                           lang_code
+                           TEXT
+                           NOT
+                           NULL
+                       );
+                       """)
 
-    # Table for user settings (chunk_size, tts_speed)
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS user_settings (
-            user_id INTEGER PRIMARY KEY,
-            chunk_size INTEGER DEFAULT 40000,
-            tts_speed TEXT DEFAULT '+0%'
-        );
-    """)
+        # Table for user settings (chunk_size, tts_speed)
+        cursor.execute("""
+                       CREATE TABLE IF NOT EXISTS user_settings
+                       (
+                           user_id
+                           INTEGER
+                           PRIMARY
+                           KEY,
+                           chunk_size
+                           INTEGER
+                           DEFAULT
+                           40000,
+                           tts_speed
+                           TEXT
+                           DEFAULT
+                           '+0%'
+                       );
+                       """)
 
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+        logger.info("Database initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize database: {e}")
+        sys.exit(1)
 
 
-async def set_bot_commands(bot: Bot):
+async def set_bot_commands(bot: Bot) -> None:
     """
     Sets default bot commands displayed in the Telegram interface.
     """
@@ -66,40 +91,54 @@ async def set_bot_commands(bot: Bot):
         BotCommand(command="help", description="Show help"),
         BotCommand(command="change_lang", description="Change language"),
         BotCommand(command="settings", description="User settings"),
-        BotCommand(command="webapp", description="Open web app for large texts"), # <-- НОВАЯ КОМАНДА
+        BotCommand(command="webapp", description="Open web app for large texts"),
     ]
     await bot.set_my_commands(commands, scope=BotCommandScopeDefault())
+    logger.info("Bot commands have been set.")
 
 
-async def main():
+async def main() -> None:
     """
     Main entry point to:
     1) Initialize the database
-    2) Configure the bot commands
+    2) Configure the bot and dispatcher
     3) Start the bot
     """
     init_db()
 
-    bot = Bot(token=TOKEN)
+    storage = MemoryStorage()
 
-    # Create a Dispatcher with in-memory storage
-    dp = Dispatcher(storage=MemoryStorage())
+    # --- ИЗМЕНЕНИЕ: Используем новый синтаксис для установки parse_mode ---
+    bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
 
-    dp.include_router(private_router)
-    dp.include_router(group_router)
+    dp = Dispatcher(storage=storage)
 
+    # Регистрация middleware для интернационализации
     i18n = I18nMiddleware(get_translator)
     dp.message.middleware(i18n)
     dp.callback_query.middleware(i18n)
-    dp.message.middleware(ClearStateMiddleware())
-    dp.callback_query.middleware(ClearStateMiddleware())
 
-    # Set commands
+    # Регистрация роутеров
+    dp.include_router(private_router)
+    dp.include_router(group_router)
+
+    # Установка команд бота
     await set_bot_commands(bot)
 
-    # Start polling
-    await dp.start_polling(bot)
+    # Удаляем вебхук перед запуском, на случай если он был установлен
+    await bot.delete_webhook(drop_pending_updates=True)
+
+    try:
+        logger.info("Starting bot polling...")
+        await dp.start_polling(bot)
+    except Exception as e:
+        logger.error(f"An error occurred during polling: {e}")
+    finally:
+        logger.info("Bot stopped.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except (KeyboardInterrupt, SystemExit):
+        logger.warning("Bot polling was interrupted.")
