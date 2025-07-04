@@ -16,8 +16,7 @@ from typing import Callable
 
 import chardet
 from aiogram import Bot, F, Router
-# ИЗМЕНЕНИЕ: Добавлен импорт ContentType
-from aiogram.enums import ContentType
+# ИЗМЕНЕНИЕ: Убран неиспользуемый импорт ContentType
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (CallbackQuery, InlineKeyboardButton,
@@ -41,8 +40,10 @@ private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 
 # ===================== Web App Handler (MUST BE FIRST) =====================
 
-# ИЗМЕНЕНИЕ: Фильтр заменен на более надежный и явный
-@private_router.message(F.content_type == ContentType.WEB_APP_DATA)
+# ИЗМЕНЕНИЕ: Фильтр изменен на F.web_app_data для корректного отлова сообщений от Web App.
+# Это правильный способ ловить такие сообщения, так как они приходят с полем web_app_data,
+# а не с отдельным типом контента.
+@private_router.message(F.web_app_data)
 async def handle_web_app_data(message: Message, _: Callable) -> None:
     """
     Handles data received from the Telegram Web App.
