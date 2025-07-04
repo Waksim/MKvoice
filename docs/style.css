@@ -27,7 +27,7 @@ body {
     max-width: 800px;
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 15px; /* Увеличим отступ между элементами */
 }
 
 h1 {
@@ -55,6 +55,7 @@ textarea {
     font-size: 16px;
     resize: vertical;
     box-sizing: border-box;
+    margin-top: -5px; /* Уменьшим отступ сверху */
 }
 
 textarea:focus {
@@ -76,10 +77,23 @@ button {
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
 }
 
-#paste-btn {
+/* Стили для кнопок Undo/Redo */
+.utility-group {
+    margin-bottom: -5px;
+}
+
+#undo-btn, #redo-btn {
+    background-color: var(--tg-theme-secondary-bg-color, #232e3c);
+    color: var(--tg-theme-button-text-color, #ffffff);
+    padding: 8px 15px; /* Сделаем их чуть меньше */
+    font-size: 14px;
+}
+
+/* Стили для основных кнопок */
+#paste-btn, #clear-btn {
     background-color: var(--tg-theme-secondary-bg-color, #232e3c);
     color: var(--tg-theme-button-text-color, #ffffff);
 }
@@ -89,10 +103,16 @@ button {
     color: var(--tg-theme-button-text-color, #ffffff);
 }
 
-button:hover {
+button:hover:not(:disabled) {
     filter: brightness(1.1);
 }
 
-button:active {
+button:active:not(:disabled) {
     filter: brightness(0.9);
+}
+
+/* Стиль для неактивных кнопок */
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
 }
