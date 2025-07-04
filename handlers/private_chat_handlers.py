@@ -49,7 +49,7 @@ async def handle_web_app_data(message: Message, _: Callable) -> None:
     logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
 
     # --- ИЗМЕНЕНИЕ: Немедленно отвечаем пользователю, что данные получены ---
-    await message.answer(_("Received your text from the web app. Starting processing..."))
+    await message.answer(_("Received your text. Starting synthesis..."))
 
     try:
         data = json.loads(message.web_app_data.data)
@@ -98,10 +98,6 @@ async def cmd_webapp(message: Message, _: Callable) -> None:
 @private_router.message(Command('start'))
 async def cmd_start(message: Message, _: Callable):
     user_id = message.from_user.id
-    lang_code = get_user_lang(user_id)
-    translator = get_translator(lang_code)
-    __ = translator.gettext
-
     logger.info(f"User {user_id} started the bot in private chat.")
     help_text = _(
         "👋 Hi! I can help you convert text to speech in various ways.\n\n"
@@ -119,7 +115,7 @@ async def cmd_start(message: Message, _: Callable):
         "Contact the bot administrator @maksenro.\n\n"
         "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
     )
-    await message.answer(help_text, parse_mode='HTML')
+    await message.answer(help_text)
 
 
 @private_router.message(Command('help'))
@@ -163,7 +159,7 @@ async def cmd_help(message: Message, _: Callable) -> None:
         "Contact the bot administrator @maksenro.\n\n"
         "[ <a href=\"https://www.donationalerts.com/r/mkprod\">Support</a> | <a href=\"https://t.me/MKprodaction\">Group</a> ]"
     )
-    await message.answer(help_text, parse_mode='HTML')
+    await message.answer(help_text)
 
 
 # ===================== Settings Handlers ======================
@@ -334,7 +330,7 @@ async def handle_url(message: Message, _: Callable) -> None:
         await message.answer(_("Received a link. Starting text extraction..."))
         text_page = await extract_text_from_url_static(url)
         if len(text_page) < 200:
-            await message.answer(_("Static extraction yielded little text. Trying dynamic extraction (this may take a moment)..."))
+            await message.answer(_("Static extraction yielded little text. Trying dynamic extraction..."))
             text_page = await extract_text_from_url_dynamic(url)
         if not text_page.strip():
             await message.reply(_("Could not extract text from the link."))
@@ -368,7 +364,7 @@ async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
     local_file_path = os.path.join(AUDIO_FOLDER, unique_filename)
 
     try:
-        await message.answer(_("Received file `{file_name}`. Downloading and processing...").format(file_name=message.document.file_name), parse_mode="MarkdownV2")
+        await message.answer(_("Received file `{file_name}`. Downloading...").format(file_name=message.document.file_name), parse_mode="MarkdownV2")
         file_info = await bot.get_file(message.document.file_id)
         await bot.download_file(file_info.file_path, destination=local_file_path)
         logger.info(f"Downloaded file from user {message.from_user.id}: {unique_filename}")
@@ -408,20 +404,17 @@ async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
             logger.info(f"Removed temporary file {local_file_path}")
 
 # --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
-@private_router.message(F.text)
+# Этот обработчик теперь будет ловить только те сообщения, в которых есть текст,
+# но НЕТ данных от Web App.
+@private_router.message(F.text, F.web_app_data.is_(None))
 async def handle_text(message: Message, _: Callable) -> None:
     """
     Handles any plain text sent by the user. Synthesizes the text to speech.
-    IMPORTANT: This handler now explicitly ignores messages with web_app_data.
+    This handler explicitly IGNORES messages that have web_app_data.
     """
-    # Диагностическое логирование
-    if message.web_app_data:
-        logger.warning(f"handle_text was mistakenly triggered by a Web App message. Ignoring. Data: {message.web_app_data.data}")
-        return
-
     text = message.text
     if not text or not text.strip():
-        # This check prevents reacting to empty messages, but it is good practice
+        # This check is good practice to prevent reacting to empty messages
         return
 
     await synthesize_text_to_audio_edge(text, str(message.from_user.id), message, logger, _)
