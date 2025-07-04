@@ -4,10 +4,10 @@ This file initializes the database, sets up the bot commands, and runs the bot.
 We also ensure that the Dispatcher uses MemoryStorage to handle user states for chunk size input.
 """
 import asyncio
-import sqlite3
 import sys
+import aiosqlite  # Заменено
 
-from aiogram import Bot, Dispatcher, BaseMiddleware
+from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import BotCommand, BotCommandScopeDefault
@@ -28,15 +28,8 @@ logger.add(sys.stderr, level="INFO")
 # Логи уровня DEBUG и выше будут записываться в файл
 logger.add("bot.log", level="DEBUG", rotation="10 MB", compression="zip")
 
-class WebAppDataMiddleware(BaseMiddleware):
-    """Middleware для логирования Web App данных"""
-    async def __call__(self, handler, event, data):
-        if event.web_app_data:
-            logger.info(f"WebAppData received: {event.web_app_data}")
-        return await handler(event, data)
 
-
-def init_db() -> None:
+async def init_db() -> None:  # Функция стала асинхронной
     """
     Creates (or updates) the necessary tables in the database:
       - user_lang (stores user's interface language)
@@ -44,45 +37,27 @@ def init_db() -> None:
     """
     logger.info("Initializing database...")
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
+        # Используем aiosqlite для асинхронной работы с БД
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            # Table for user language
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS user_lang
+                (
+                    user_id  INTEGER PRIMARY KEY,
+                    lang_code TEXT NOT NULL
+                );
+            """)
 
-        # Table for user language
-        cursor.execute("""
-                       CREATE TABLE IF NOT EXISTS user_lang
-                       (
-                           user_id
-                           INTEGER
-                           PRIMARY
-                           KEY,
-                           lang_code
-                           TEXT
-                           NOT
-                           NULL
-                       );
-                       """)
-
-        # Table for user settings (chunk_size, tts_speed)
-        cursor.execute("""
-                       CREATE TABLE IF NOT EXISTS user_settings
-                       (
-                           user_id
-                           INTEGER
-                           PRIMARY
-                           KEY,
-                           chunk_size
-                           INTEGER
-                           DEFAULT
-                           40000,
-                           tts_speed
-                           TEXT
-                           DEFAULT
-                           '+0%'
-                       );
-                       """)
-
-        conn.commit()
-        conn.close()
+            # Table for user settings (chunk_size, tts_speed)
+            await db.execute("""
+                CREATE TABLE IF NOT EXISTS user_settings
+                (
+                    user_id    INTEGER PRIMARY KEY,
+                    chunk_size INTEGER DEFAULT 40000,
+                    tts_speed  TEXT    DEFAULT '+0%'
+                );
+            """)
+            await db.commit()
         logger.info("Database initialized successfully.")
     except Exception as e:
         logger.error(f"Failed to initialize database: {e}")
@@ -111,7 +86,7 @@ async def main() -> None:
     2) Configure the bot and dispatcher
     3) Start the bot
     """
-    init_db()
+    await init_db()  # Вызываем асинхронную функцию
 
     storage = MemoryStorage()
 
@@ -123,9 +98,6 @@ async def main() -> None:
     i18n = I18nMiddleware(get_translator)
     dp.message.middleware(i18n)
     dp.callback_query.middleware(i18n)
-
-    # --- Добавлен middleware для обработки Web App данных ---
-    dp.update.middleware(WebAppDataMiddleware())
 
     # Регистрация роутеров
     dp.include_router(private_router)

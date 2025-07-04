@@ -1,7 +1,7 @@
 # ============================= FILE: utils/i18n.py =============================
 import gettext
 import os
-import sqlite3
+import aiosqlite  # Заменено
 from project_structure.paths import DATABASE_PATH, PROJECT_ROOT
 
 LOCALES_DIR = PROJECT_ROOT / "locales"
@@ -26,34 +26,30 @@ def get_translator(lang_code: str):
             languages=['en']
         )
 
-def get_user_lang(user_id: int) -> str:
+async def get_user_lang(user_id: int) -> str:  # Функция стала асинхронной
     """
     Retrieves the saved language code for a specific user from the database.
     Defaults to 'ru' if not found or on error.
     """
     try:
-        conn = sqlite3.connect(DATABASE_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT lang_code FROM user_lang WHERE user_id = ?", (user_id,))
-        row = cursor.fetchone()
-        conn.close()
-        if row:
-            return row[0]
-        else:
-            return "ru"
-    except:
+        async with aiosqlite.connect(DATABASE_PATH) as db:
+            async with db.execute("SELECT lang_code FROM user_lang WHERE user_id = ?", (user_id,)) as cursor:
+                row = await cursor.fetchone()
+            if row:
+                return row[0]
+            else:
+                return "ru"
+    except Exception:
         return "ru"
 
-def set_user_lang(user_id: int, lang_code: str):
+async def set_user_lang(user_id: int, lang_code: str):  # Функция стала асинхронной
     """
     Updates or inserts the language code for a user in the database.
     """
-    conn = sqlite3.connect(DATABASE_PATH)
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO user_lang (user_id, lang_code)
-        VALUES (?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET lang_code=excluded.lang_code
-    """, (user_id, lang_code))
-    conn.commit()
-    conn.close()
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute("""
+            INSERT INTO user_lang (user_id, lang_code)
+            VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET lang_code=excluded.lang_code
+        """, (user_id, lang_code))
+        await db.commit()

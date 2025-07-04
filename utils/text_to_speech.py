@@ -51,7 +51,7 @@ async def synthesize_text_to_audio_edge(text: str, filename_prefix: str, message
     user_id = message.from_user.id
 
     # 1) Retrieve user settings
-    settings = get_user_settings(user_id)
+    settings = await get_user_settings(user_id)  # Добавлен await
     user_chunk_size = settings['chunk_size']
     user_speed = settings['tts_speed']  # e.g. '+25%' or '-50%', etc.
 
