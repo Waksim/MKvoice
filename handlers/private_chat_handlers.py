@@ -37,18 +37,18 @@ private_router = Router()
 private_router.message.filter(ChatTypeFilter(chat_type=["private"]))
 
 
-# ===================== Web App Handlers =====================
+# ===================== Web App Handler (MUST BE FIRST) =====================
 
 @private_router.message(F.web_app_data)
 async def handle_web_app_data(message: Message, _: Callable) -> None:
     """
     Handles data received from the Telegram Web App.
-    This is the dedicated handler for Web App updates.
+    This handler MUST be registered before any generic text handlers.
     """
     user_id = message.from_user.id
     logger.info(f"User {user_id} sent data from Web App. Raw data: {message.web_app_data.data}")
 
-    # --- ИЗМЕНЕНИЕ: Немедленно отвечаем пользователю, что данные получены ---
+    # --- Немедленно отвечаем пользователю, что данные получены ---
     await message.answer(_("Received your text. Starting synthesis..."))
 
     try:
@@ -71,6 +71,8 @@ async def handle_web_app_data(message: Message, _: Callable) -> None:
         await message.answer(_("An unexpected error occurred: {error}").format(error=str(e)))
 
 
+# ===================== Standard Command Handlers =====================
+
 @private_router.message(Command('webapp'))
 async def cmd_webapp(message: Message, _: Callable) -> None:
     """
@@ -92,8 +94,6 @@ async def cmd_webapp(message: Message, _: Callable) -> None:
         reply_markup=keyboard
     )
 
-
-# ===================== Standard Command Handlers =====================
 
 @private_router.message(Command('start'))
 async def cmd_start(message: Message, _: Callable):
@@ -275,7 +275,7 @@ async def process_change_lang(callback_query: CallbackQuery, _: Callable) -> Non
     logger.info(f"User {callback_query.from_user.id} updated language to {lang_code}.")
 
 
-# ===================== Other handlers ======================
+# ===================== Other handlers (Specific before Generic) ======================
 @private_router.message(Command(commands=["s", "S", "ы", "Ы"]))
 async def cmd_s(message: Message, _: Callable) -> None:
     """
@@ -403,14 +403,15 @@ async def handle_file(message: Message, bot: Bot, _: Callable) -> None:
             os.remove(local_file_path)
             logger.info(f"Removed temporary file {local_file_path}")
 
-# --- КЛЮЧЕВОЕ ИЗМЕНЕНИЕ ---
-# Этот обработчик теперь будет ловить только те сообщения, в которых есть текст,
-# но НЕТ данных от Web App.
+
+# ===================== Generic Text Handler (MUST BE LAST) =====================
+
 @private_router.message(F.text, F.web_app_data.is_(None))
 async def handle_text(message: Message, _: Callable) -> None:
     """
     Handles any plain text sent by the user. Synthesizes the text to speech.
-    This handler explicitly IGNORES messages that have web_app_data.
+    This handler explicitly IGNORES messages that have web_app_data to prevent conflicts.
+    It MUST be one of the last message handlers registered in this router.
     """
     text = message.text
     if not text or not text.strip():
