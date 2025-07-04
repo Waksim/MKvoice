@@ -2,7 +2,6 @@ document.addEventListener('DOMContentLoaded', function () {
     // Проверяем, доступен ли объект Telegram Web App
     if (!window.Telegram || !window.Telegram.WebApp) {
         console.error("Telegram Web App script is not loaded or initialized.");
-        // Можно показать пользователю сообщение об ошибке
         document.body.innerHTML = '<h1>Error</h1><p>Could not initialize Telegram Web App. Please open this page inside Telegram.</p>';
         return;
     }
@@ -10,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const tg = window.Telegram.WebApp;
     console.log("Telegram Web App object initialized:", tg);
 
-    // Расширяем цветовую схему для темной/светлой темы
+    // Расширяем Web App на весь экран
     tg.expand();
 
     // Получаем все элементы интерфейса
@@ -28,7 +27,6 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // --- Функции для управления состоянием ---
 
-    // Обновляет состояние всех кнопок (активна/неактивна)
     function updateButtonsState() {
         const hasText = textInput.value.trim().length > 0;
 
@@ -40,19 +38,13 @@ document.addEventListener('DOMContentLoaded', function () {
         // Управляем состоянием главной кнопки Telegram
         if (hasText) {
             tg.MainButton.enable();
-            tg.MainButton.show();
         } else {
             tg.MainButton.disable();
-            // Можно скрыть кнопку, если нет текста, для чистоты интерфейса
-            // tg.MainButton.hide();
         }
     }
 
-    // Сохраняет текущее состояние текста в историю
     function saveState() {
-        // Очищаем таймаут, если пользователь продолжает вводить текст
         clearTimeout(debounceTimeout);
-        // Устанавливаем новый таймаут
         debounceTimeout = setTimeout(() => {
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
@@ -60,10 +52,9 @@ document.addEventListener('DOMContentLoaded', function () {
             if (history[history.length - 1] !== textInput.value) {
                 history.push(textInput.value);
                 historyIndex = history.length - 1;
-                console.log(`State saved. History size: ${history.length}`);
             }
             updateButtonsState();
-        }, 500); // Задержка в 500 мс перед сохранением
+        }, 500);
     }
 
     // --- Инициализация ---
@@ -71,10 +62,11 @@ document.addEventListener('DOMContentLoaded', function () {
     tg.ready();
     console.log("tg.ready() called.");
 
-    // Конфигурируем главную кнопку
+    // Конфигурируем и, что ВАЖНО, ПОКАЗЫВАЕМ главную кнопку
     tg.MainButton.setText('Send Text');
     tg.MainButton.color = '#2ea6ff';
     tg.MainButton.textColor = '#ffffff';
+    tg.MainButton.show(); // <--- ИСПРАВЛЕНИЕ: Показываем кнопку сразу
 
     // Инициализируем состояние кнопок при загрузке
     updateButtonsState();
@@ -90,7 +82,7 @@ document.addEventListener('DOMContentLoaded', function () {
         navigator.clipboard.readText()
             .then(text => {
                 textInput.value = text;
-                saveState(); // Сохраняем состояние после вставки
+                saveState();
                 updateButtonsState();
             })
             .catch(err => {
@@ -101,7 +93,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     clearBtn.addEventListener('click', () => {
         textInput.value = '';
-        saveState(); // Сохраняем пустое состояние
+        saveState();
         updateButtonsState();
     });
 
@@ -112,8 +104,6 @@ document.addEventListener('DOMContentLoaded', function () {
             updateButtonsState();
         }
     });
-
-
 
     redoBtn.addEventListener('click', () => {
         if (historyIndex < history.length - 1) {
@@ -134,20 +124,17 @@ document.addEventListener('DOMContentLoaded', function () {
         try {
             const dataToSend = JSON.stringify({ text: textValue });
             console.log("Sending data to bot:", dataToSend);
-
-            // Отправляем данные через официальный API
             tg.sendData(dataToSend);
 
-            // Закрытие Web App происходит ПОСЛЕ успешного вызова sendData
-            // tg.close(); // Временно закомментируем, чтобы видеть логи в консоли
+            // Раскомментируйте, когда убедитесь, что все работает
+            // tg.close();
         } catch (error) {
             console.error("Error sending data:", error);
             tg.showAlert(`An error occurred while sending data: ${error.message}`);
         }
     }
 
-    // Привязываем функцию отправки и к нашей кнопке, и к главной кнопке Telegram
+    // Привязываем функцию отправки к обеим кнопкам
     sendBtn.addEventListener('click', sendData);
-    tg.onEvent('mainButtonClicked', sendData);
-
+    tg.MainButton.onClick(sendData); // <--- ИСПРАВЛЕНИЕ: Возвращаем надежный .onClick()
 });
