@@ -11,6 +11,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Telegram bot token retrieved from environment variables
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
+# URL for the Web App, retrieved from environment variables
+WEBAPP_URL = os.getenv("WEBAPP_URL")
+
 # Path to the log file, defaults to 'bot_log.log' if not specified
 LOG_FILE = os.path.join(BASE_DIR, os.getenv("LOG_FILE", "bot_log.log"))
 
