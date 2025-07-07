@@ -22,27 +22,10 @@ document.addEventListener('DOMContentLoaded', function () {
 
     logToPage("DOM content loaded. Initializing script...");
 
-    if (!window.Telegram || !window.Telegram.WebApp) {
-        logToPage("Fatal: Telegram Web App script is not loaded or initialized.", 'error');
-        document.body.innerHTML = '<h1>Error</h1><p>Could not initialize Telegram Web App. Please open this page inside Telegram.</p>';
-        return;
-    }
-
-    const tg = window.Telegram.WebApp;
-    logToPage("Telegram Web App object initialized successfully.");
-    logToPage(`Theme params: ${JSON.stringify(tg.themeParams)}`, 'warn');
-    logToPage(`User data: ${JSON.stringify(tg.initDataUnsafe.user)}`, 'warn');
-
-
-    tg.ready();
-    logToPage("tg.ready() called.");
-    tg.expand();
-    logToPage("tg.expand() called.");
-
     const textInput = document.getElementById('text-input');
     const pasteBtn = document.getElementById('paste-btn');
     const clearBtn = document.getElementById('clear-btn');
-    const sendBtn = document.getElementById('send-btn');
+    const downloadBtn = document.getElementById('download-btn'); // Кнопка переименована
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
@@ -52,13 +35,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateAllButtonsState() {
         const hasText = textInput.value.trim().length > 0;
-        // Главная кнопка Telegram теперь тоже управляется этой логикой
-        if (hasText) {
-            tg.MainButton.enable();
-        } else {
-            tg.MainButton.disable();
-        }
-        sendBtn.disabled = !hasText;
+        downloadBtn.disabled = !hasText;
         clearBtn.disabled = !hasText;
         undoBtn.disabled = historyIndex <= 0;
         redoBtn.disabled = historyIndex >= history.length - 1;
@@ -67,96 +44,75 @@ document.addEventListener('DOMContentLoaded', function () {
     function saveState() {
         clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => {
+            // Если мы откатились назад и начали печатать, удаляем "будущую" историю
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
             }
+            // Сохраняем состояние, только если оно отличается от последнего
             if (history[history.length - 1] !== textInput.value) {
                 history.push(textInput.value);
                 historyIndex = history.length - 1;
             }
             updateAllButtonsState();
-        }, 300);
+        }, 300); // Дебаунс для сохранения состояния
     }
 
-    // ================== ИЗМЕНЕНИЕ: Новая функция отправки данных на бэкенд ==================
+    // ================== ИЗМЕНЕНИЕ: Новая функция для скачивания .txt файла ==================
     /**
-     * Асинхронная функция отправки данных на внешний бэкенд-сервер.
+     * Создает и инициирует скачивание текстового файла с содержимым из textarea.
      */
-    async function sendDataToBackend() {
-        logToPage("--- Send process started ---");
-        const textValue = textInput.value.trim();
+    function downloadTxtFile() {
+        logToPage("--- Download process started ---");
+        const textValue = textInput.value; // Берем текст как есть, trim() не нужен
 
         if (textValue.length === 0) {
             logToPage("Validation failed: Text is empty.", 'warn');
-            tg.showAlert('Text cannot be empty!');
+            alert('The text field is empty!');
             return;
         }
 
-        // Получаем ID пользователя из данных инициализации Web App
-        const userId = tg.initDataUnsafe.user.id;
-        if (!userId) {
-            logToPage("Fatal: Could not get user ID from Telegram.", 'error');
-            tg.showAlert('Could not identify you. Please restart the bot and try again.');
+        // Запрашиваем имя файла у пользователя
+        let filename = prompt("Enter a filename for your .txt file:", "document.txt");
+        if (filename === null) { // Пользователь нажал "Отмена"
+            logToPage("Download cancelled by user.", 'warn');
             return;
         }
-
-        logToPage(`Text for sending: "${textValue.substring(0, 50)}..."`);
-        logToPage(`User ID: ${userId}`);
-
-        // Делаем кнопки неактивными на время отправки
-        sendBtn.disabled = true;
-        tg.MainButton.showProgress();
-
-        try {
-            const backendUrl = 'http://89.110.119.205:8000/process-text'; // ВАШ АДРЕС СЕРВЕРА
-            logToPage(`Sending POST request to ${backendUrl}`);
-
-            const response = await fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    user_id: userId,
-                    text: textValue,
-                }),
-            });
-
-            const responseData = await response.json();
-
-            if (!response.ok) {
-                logToPage(`Server returned an error: ${response.status} - ${responseData.detail || 'Unknown error'}`, 'error');
-                tg.showAlert(`Server error: ${responseData.detail || 'An unknown error occurred.'}`);
-            } else {
-                logToPage("Data sent successfully to backend.", 'info');
-                tg.showAlert("Your text has been sent for processing. Please check the bot chat for the result.");
-                // Закрываем Web App после успешной отправки
-                tg.close();
-            }
-
-        } catch (error) {
-            logToPage(`An unexpected network error occurred: ${error.message}`, 'error');
-            tg.showAlert(`A network error occurred: ${error.message}. Please check your connection or contact the administrator.`);
-        } finally {
-            // Возвращаем кнопки в активное состояние
-            sendBtn.disabled = false;
-            tg.MainButton.hideProgress();
-            updateAllButtonsState(); // Обновляем состояние на случай, если пользователь не закрыл окно
+        // Убедимся, что имя файла заканчивается на .txt
+        if (!filename.toLowerCase().endsWith('.txt')) {
+            filename += '.txt';
         }
+
+        logToPage(`Preparing file "${filename}" for download.`);
+
+        // 1. Создаем Blob (Binary Large Object) из текстовых данных
+        const blob = new Blob([textValue], { type: 'text/plain;charset=utf-8' });
+
+        // 2. Создаем временный URL для этого Blob
+        const url = URL.createObjectURL(blob);
+
+        // 3. Создаем временный элемент <a> для скачивания
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename; // Этот атрибут указывает браузеру скачать файл
+
+        // 4. Добавляем элемент в DOM (необходимо для Firefox) и симулируем клик
+        document.body.appendChild(link);
+        link.click();
+
+        // 5. Очистка: удаляем элемент и освобождаем URL
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        logToPage(`Download of "${filename}" initiated successfully.`, 'info');
     }
     // =====================================================================================================
 
     // --- Инициализация и настройка обработчиков ---
 
-    tg.MainButton.setText('Send Text');
-    tg.MainButton.color = '#2ea6ff';
-    tg.MainButton.textColor = '#ffffff';
-    tg.MainButton.show();
-    logToPage("MainButton configured and shown.");
-
     textInput.addEventListener('input', saveState);
 
     pasteBtn.addEventListener('click', () => {
+        // Используем современный Clipboard API
         navigator.clipboard.readText()
             .then(text => {
                 textInput.value = text;
@@ -165,8 +121,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 logToPage("Text pasted from clipboard.");
             })
             .catch(err => {
-                logToPage(`Failed to read clipboard: ${err}`, 'error');
-                tg.showAlert('Could not read from clipboard. Please paste manually.');
+                logToPage(`Failed to read clipboard: ${err.message}`, 'error');
+                alert('Could not read from clipboard. Please paste manually.');
             });
     });
 
@@ -182,6 +138,7 @@ document.addEventListener('DOMContentLoaded', function () {
             historyIndex--;
             textInput.value = history[historyIndex];
             updateAllButtonsState();
+            logToPage("Action: Undo.");
         }
     });
 
@@ -190,13 +147,14 @@ document.addEventListener('DOMContentLoaded', function () {
             historyIndex++;
             textInput.value = history[historyIndex];
             updateAllButtonsState();
+            logToPage("Action: Redo.");
         }
     });
 
-    // Привязываем НОВУЮ функцию отправки к кнопкам
-    sendBtn.addEventListener('click', sendDataToBackend);
-    tg.MainButton.onClick(sendDataToBackend);
-    logToPage("Event listeners for send buttons are set.");
+    // Привязываем НОВУЮ функцию скачивания к кнопке
+    downloadBtn.addEventListener('click', downloadTxtFile);
+    logToPage("Event listener for download button is set.");
 
+    // Устанавливаем начальное состояние кнопок
     updateAllButtonsState();
 });
