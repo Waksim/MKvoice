@@ -1,154 +1,133 @@
 document.addEventListener('DOMContentLoaded', function () {
     const debugConsole = document.getElementById('debug-console');
 
-    // ================== ФУНКЦИЯ ЛОГИРОВАНИЯ НА СТРАНИЦУ ==================
     function logToPage(message, type = 'info') {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
-        let color = '#00ff00'; // Зеленый для info
-        if (type === 'error') {
-            color = '#ff4444'; // Красный для ошибок
-        } else if (type === 'warn') {
-            color = '#ffbb33'; // Желтый для предупреждений
-        }
+        let color = '#00ff00';
+        if (type === 'error') color = '#ff4444'; else if (type === 'warn') color = '#ffbb33';
         logEntry.style.color = color;
         logEntry.textContent = `[${timestamp}] ${message}`;
         debugConsole.insertBefore(logEntry, debugConsole.firstChild);
-        if (type === 'error') console.error(message);
-        else if (type === 'warn') console.warn(message);
-        else console.log(message);
     }
-    // ===============================================================================
 
-    logToPage("DOM content loaded. Initializing script...");
+    if (!window.Telegram || !window.Telegram.WebApp) {
+        logToPage("Fatal: Not in Telegram. Limited functionality.", 'error');
+        // Не блокируем, но некоторые функции не будут работать
+    }
+
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    logToPage("Telegram Web App initialized.");
 
     const textInput = document.getElementById('text-input');
     const pasteBtn = document.getElementById('paste-btn');
     const clearBtn = document.getElementById('clear-btn');
-    const downloadBtn = document.getElementById('download-btn');
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
     let history = [textInput.value];
     let historyIndex = 0;
-    let debounceTimeout;
 
     function updateAllButtonsState() {
         const hasText = textInput.value.trim().length > 0;
-        downloadBtn.disabled = !hasText;
+        if (hasText) tg.MainButton.enable(); else tg.MainButton.disable();
         clearBtn.disabled = !hasText;
         undoBtn.disabled = historyIndex <= 0;
         redoBtn.disabled = historyIndex >= history.length - 1;
     }
 
     function saveState() {
-        clearTimeout(debounceTimeout);
-        debounceTimeout = setTimeout(() => {
-            if (historyIndex < history.length - 1) {
-                history = history.slice(0, historyIndex + 1);
-            }
-            if (history[history.length - 1] !== textInput.value) {
-                history.push(textInput.value);
-                historyIndex = history.length - 1;
-            }
+        // ... (логика сохранения истории для Undo/Redo остается прежней)
+        const currentValue = textInput.value;
+        if (history[historyIndex] !== currentValue) {
+            if (historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+            history.push(currentValue);
+            historyIndex = history.length - 1;
             updateAllButtonsState();
-        }, 300);
-    }
-
-    // ================== ИЗМЕНЕНИЕ: Убрано диалоговое окно ==================
-    /**
-     * Создает и инициирует скачивание текстового файла с содержимым из textarea.
-     * Имя файла генерируется автоматически.
-     */
-    function downloadTxtFile() {
-        logToPage("--- Download process started ---");
-        const textValue = textInput.value;
-
-        if (textValue.length === 0) {
-            logToPage("Validation failed: Text is empty.", 'warn');
-            alert('The text field is empty!');
-            return;
         }
-
-        // --- НОВАЯ ЛОГИКА ГЕНЕРАЦИИ ИМЕНИ ФАЙЛА ---
-        // Создаем объект даты
-        const now = new Date();
-        // Форматируем дату и время в удобную строку (ГГГГ-ММ-ДД_ЧЧ-ММ-СС)
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0'); // Месяцы от 0 до 11
-        const day = String(now.getDate()).padStart(2, '0');
-        const hours = String(now.getHours()).padStart(2, '0');
-        const minutes = String(now.getMinutes()).padStart(2, '0');
-        const seconds = String(now.getSeconds()).padStart(2, '0');
-
-        // Собираем имя файла, например "document_2025-07-07_10-30-15.txt"
-        const filename = `document_${year}-${month}-${day}_${hours}-${minutes}-${seconds}.txt`;
-        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
-
-        logToPage(`Preparing file "${filename}" for download.`);
-
-        const blob = new Blob([textValue], { type: 'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = filename;
-
-        document.body.appendChild(link);
-        link.click();
-
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-
-        logToPage(`Download of "${filename}" initiated successfully.`, 'info');
     }
-    // =====================================================================================================
-
-    // --- Инициализация и настройка обработчиков ---
 
     textInput.addEventListener('input', saveState);
 
     pasteBtn.addEventListener('click', () => {
-        navigator.clipboard.readText()
-            .then(text => {
+        logToPage("Pasting via Telegram API...");
+        tg.readTextFromClipboard(text => {
+            if (text === null) {
+                logToPage("Clipboard empty or permission denied.", 'warn');
+                tg.showAlert("Clipboard is empty or access was denied.");
+            } else {
                 textInput.value = text;
+                logToPage("Text pasted.");
                 saveState();
-                updateAllButtonsState();
-                logToPage("Text pasted from clipboard.");
-            })
-            .catch(err => {
-                logToPage(`Failed to read clipboard: ${err.message}`, 'error');
-                textInput.focus();
-                alert("Could not read clipboard. Please use your device's paste function (Ctrl+V or long-press).");
-            });
+            }
+        });
     });
 
-    clearBtn.addEventListener('click', () => {
-        textInput.value = '';
-        saveState();
-        updateAllButtonsState();
-        logToPage("Text cleared.");
-    });
+    clearBtn.addEventListener('click', () => { textInput.value = ''; saveState(); });
+    undoBtn.addEventListener('click', () => { if (historyIndex > 0) { historyIndex--; textInput.value = history[historyIndex]; updateAllButtonsState(); } });
+    redoBtn.addEventListener('click', () => { if (historyIndex < history.length - 1) { historyIndex++; textInput.value = history[historyIndex]; updateAllButtonsState(); } });
 
-    undoBtn.addEventListener('click', () => {
-        if (historyIndex > 0) {
-            historyIndex--;
-            textInput.value = history[historyIndex];
-            updateAllButtonsState();
-            logToPage("Action: Undo.");
+    // --- LZW-компрессия для уменьшения размера текста ---
+    const LZW = {
+        compress: (uncompressed) => {
+            let dict = {};
+            let data = (uncompressed + "").split("");
+            let out = [];
+            let currChar;
+            let phrase = data[0];
+            let code = 256;
+            for (let i = 1; i < data.length; i++) {
+                currChar = data[i];
+                if (dict[phrase + currChar] != null) {
+                    phrase += currChar;
+                } else {
+                    out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
+                    dict[phrase + currChar] = code;
+                    code++;
+                    phrase = currChar;
+                }
+            }
+            out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
+            for (let i = 0; i < out.length; i++) {
+                out[i] = String.fromCharCode(out[i]);
+            }
+            return out.join("");
         }
-    });
+    };
 
-    redoBtn.addEventListener('click', () => {
-        if (historyIndex < history.length - 1) {
-            historyIndex++;
-            textInput.value = history[historyIndex];
-            updateAllButtonsState();
-            logToPage("Action: Redo.");
+    // --- ОСНОВНАЯ ФУНКЦИЯ: ПОДГОТОВКА И ПЕРЕНАПРАВЛЕНИЕ ---
+    function prepareAndRedirectForDownload() {
+        const text = textInput.value;
+        if (text.trim().length === 0) {
+            tg.showAlert("Text is empty!");
+            return;
         }
-    });
 
-    downloadBtn.addEventListener('click', downloadTxtFile);
-    logToPage("Event listener for download button is set.");
+        logToPage("Compressing text...");
+        const compressedText = LZW.compress(text);
+        logToPage(`Compression ratio: ${text.length} -> ${compressedText.length} chars`);
+
+        const data = encodeURIComponent(compressedText);
+
+        // ВАЖНО: Замените URL на ваш!
+        const baseUrl = "https://waksim.github.io/MKttsBOT/"; // <-- ВАШ ПУТЬ НА GITHUB PAGES
+        const downloadUrl = `${baseUrl}downloader.html?data=${data}`;
+
+        if (downloadUrl.length > 4096) { // Запас прочности
+             logToPage("URL too long even after compression.", "error");
+             tg.showAlert("The text is too long to be processed this way. Please shorten it.");
+             return;
+        }
+
+        logToPage("Redirecting to browser for download...");
+        tg.openLink(downloadUrl);
+    }
+
+    tg.MainButton.setText("Open Download Page");
+    tg.MainButton.onClick(prepareAndRedirectForDownload);
+    tg.MainButton.show();
 
     updateAllButtonsState();
 });
