@@ -25,7 +25,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const textInput = document.getElementById('text-input');
     const pasteBtn = document.getElementById('paste-btn');
     const clearBtn = document.getElementById('clear-btn');
-    const downloadBtn = document.getElementById('download-btn'); // Кнопка переименована
+    const downloadBtn = document.getElementById('download-btn');
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
@@ -44,26 +44,25 @@ document.addEventListener('DOMContentLoaded', function () {
     function saveState() {
         clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => {
-            // Если мы откатились назад и начали печатать, удаляем "будущую" историю
             if (historyIndex < history.length - 1) {
                 history = history.slice(0, historyIndex + 1);
             }
-            // Сохраняем состояние, только если оно отличается от последнего
             if (history[history.length - 1] !== textInput.value) {
                 history.push(textInput.value);
                 historyIndex = history.length - 1;
             }
             updateAllButtonsState();
-        }, 300); // Дебаунс для сохранения состояния
+        }, 300);
     }
 
-    // ================== ИЗМЕНЕНИЕ: Новая функция для скачивания .txt файла ==================
+    // ================== ИЗМЕНЕНИЕ: Убрано диалоговое окно ==================
     /**
      * Создает и инициирует скачивание текстового файла с содержимым из textarea.
+     * Имя файла генерируется автоматически.
      */
     function downloadTxtFile() {
         logToPage("--- Download process started ---");
-        const textValue = textInput.value; // Берем текст как есть, trim() не нужен
+        const textValue = textInput.value;
 
         if (textValue.length === 0) {
             logToPage("Validation failed: Text is empty.", 'warn');
@@ -71,35 +70,32 @@ document.addEventListener('DOMContentLoaded', function () {
             return;
         }
 
-        // Запрашиваем имя файла у пользователя
-        let filename = prompt("Enter a filename for your .txt file:", "document.txt");
-        if (filename === null) { // Пользователь нажал "Отмена"
-            logToPage("Download cancelled by user.", 'warn');
-            return;
-        }
-        // Убедимся, что имя файла заканчивается на .txt
-        if (!filename.toLowerCase().endsWith('.txt')) {
-            filename += '.txt';
-        }
+        // --- НОВАЯ ЛОГИКА ГЕНЕРАЦИИ ИМЕНИ ФАЙЛА ---
+        // Создаем объект даты
+        const now = new Date();
+        // Форматируем дату и время в удобную строку (ГГГГ-ММ-ДД_ЧЧ-ММ-СС)
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0'); // Месяцы от 0 до 11
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+
+        // Собираем имя файла, например "document_2025-07-07_10-30-15.txt"
+        const filename = `document_${year}-${month}-${day}_${hours}-${minutes}-${seconds}.txt`;
+        // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
 
         logToPage(`Preparing file "${filename}" for download.`);
 
-        // 1. Создаем Blob (Binary Large Object) из текстовых данных
         const blob = new Blob([textValue], { type: 'text/plain;charset=utf-8' });
-
-        // 2. Создаем временный URL для этого Blob
         const url = URL.createObjectURL(blob);
-
-        // 3. Создаем временный элемент <a> для скачивания
         const link = document.createElement('a');
         link.href = url;
-        link.download = filename; // Этот атрибут указывает браузеру скачать файл
+        link.download = filename;
 
-        // 4. Добавляем элемент в DOM (необходимо для Firefox) и симулируем клик
         document.body.appendChild(link);
         link.click();
 
-        // 5. Очистка: удаляем элемент и освобождаем URL
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
@@ -112,7 +108,6 @@ document.addEventListener('DOMContentLoaded', function () {
     textInput.addEventListener('input', saveState);
 
     pasteBtn.addEventListener('click', () => {
-        // Используем современный Clipboard API
         navigator.clipboard.readText()
             .then(text => {
                 textInput.value = text;
@@ -122,7 +117,8 @@ document.addEventListener('DOMContentLoaded', function () {
             })
             .catch(err => {
                 logToPage(`Failed to read clipboard: ${err.message}`, 'error');
-                alert('Could not read from clipboard. Please paste manually.');
+                textInput.focus();
+                alert("Could not read clipboard. Please use your device's paste function (Ctrl+V or long-press).");
             });
     });
 
@@ -151,10 +147,8 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Привязываем НОВУЮ функцию скачивания к кнопке
     downloadBtn.addEventListener('click', downloadTxtFile);
     logToPage("Event listener for download button is set.");
 
-    // Устанавливаем начальное состояние кнопок
     updateAllButtonsState();
 });
