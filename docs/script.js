@@ -5,25 +5,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const timestamp = new Date().toLocaleTimeString();
         const logEntry = document.createElement('div');
         let color = '#00ff00';
-        if (type === 'error') color = '#ff4444'; else if (type === 'warn') color = '#ffbb33';
+        if (type === 'error') color = '#ff4444';
+        else if (type === 'warn') color = '#ffbb33';
         logEntry.style.color = color;
         logEntry.textContent = `[${timestamp}] ${message}`;
         debugConsole.insertBefore(logEntry, debugConsole.firstChild);
+        if (type === 'error') console.error(message);
+        else console.log(message);
     }
 
-    if (!window.Telegram || !window.Telegram.WebApp) {
-        logToPage("Fatal: Not in Telegram. Limited functionality.", 'error');
-        // Не блокируем, но некоторые функции не будут работать
-    }
-
-    const tg = window.Telegram.WebApp;
-    tg.ready();
-    tg.expand();
-    logToPage("Telegram Web App initialized.");
+    logToPage("DOM content loaded. Standalone mode initialized.");
 
     const textInput = document.getElementById('text-input');
     const pasteBtn = document.getElementById('paste-btn');
     const clearBtn = document.getElementById('clear-btn');
+    const downloadBtn = document.getElementById('download-btn');
     const undoBtn = document.getElementById('undo-btn');
     const redoBtn = document.getElementById('redo-btn');
 
@@ -32,102 +28,97 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function updateAllButtonsState() {
         const hasText = textInput.value.trim().length > 0;
-        if (hasText) tg.MainButton.enable(); else tg.MainButton.disable();
+        downloadBtn.disabled = !hasText;
         clearBtn.disabled = !hasText;
         undoBtn.disabled = historyIndex <= 0;
         redoBtn.disabled = historyIndex >= history.length - 1;
     }
 
     function saveState() {
-        // ... (логика сохранения истории для Undo/Redo остается прежней)
         const currentValue = textInput.value;
         if (history[historyIndex] !== currentValue) {
-            if (historyIndex < history.length - 1) history = history.slice(0, historyIndex + 1);
+            if (historyIndex < history.length - 1) {
+                history = history.slice(0, historyIndex + 1);
+            }
             history.push(currentValue);
             historyIndex = history.length - 1;
             updateAllButtonsState();
         }
     }
 
-    textInput.addEventListener('input', saveState);
+    function downloadTxtFile() {
+        logToPage("--- Download process started ---");
+        const textValue = textInput.value;
 
-    pasteBtn.addEventListener('click', () => {
-        logToPage("Pasting via Telegram API...");
-        tg.readTextFromClipboard(text => {
-            if (text === null) {
-                logToPage("Clipboard empty or permission denied.", 'warn');
-                tg.showAlert("Clipboard is empty or access was denied.");
-            } else {
-                textInput.value = text;
-                logToPage("Text pasted.");
-                saveState();
-            }
-        });
-    });
-
-    clearBtn.addEventListener('click', () => { textInput.value = ''; saveState(); });
-    undoBtn.addEventListener('click', () => { if (historyIndex > 0) { historyIndex--; textInput.value = history[historyIndex]; updateAllButtonsState(); } });
-    redoBtn.addEventListener('click', () => { if (historyIndex < history.length - 1) { historyIndex++; textInput.value = history[historyIndex]; updateAllButtonsState(); } });
-
-    // --- LZW-компрессия для уменьшения размера текста ---
-    const LZW = {
-        compress: (uncompressed) => {
-            let dict = {};
-            let data = (uncompressed + "").split("");
-            let out = [];
-            let currChar;
-            let phrase = data[0];
-            let code = 256;
-            for (let i = 1; i < data.length; i++) {
-                currChar = data[i];
-                if (dict[phrase + currChar] != null) {
-                    phrase += currChar;
-                } else {
-                    out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-                    dict[phrase + currChar] = code;
-                    code++;
-                    phrase = currChar;
-                }
-            }
-            out.push(phrase.length > 1 ? dict[phrase] : phrase.charCodeAt(0));
-            for (let i = 0; i < out.length; i++) {
-                out[i] = String.fromCharCode(out[i]);
-            }
-            return out.join("");
-        }
-    };
-
-    // --- ОСНОВНАЯ ФУНКЦИЯ: ПОДГОТОВКА И ПЕРЕНАПРАВЛЕНИЕ ---
-    function prepareAndRedirectForDownload() {
-        const text = textInput.value;
-        if (text.trim().length === 0) {
-            tg.showAlert("Text is empty!");
+        if (textValue.length === 0) {
+            logToPage("Validation failed: Text is empty.", 'warn');
+            alert('The text field is empty!');
             return;
         }
 
-        logToPage("Compressing text...");
-        const compressedText = LZW.compress(text);
-        logToPage(`Compression ratio: ${text.length} -> ${compressedText.length} chars`);
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const filename = `document_${year}-${month}-${day}_${hours}-${minutes}.txt`;
 
-        const data = encodeURIComponent(compressedText);
+        logToPage(`Preparing file "${filename}" for download.`);
 
-        // ВАЖНО: Замените URL на ваш!
-        const baseUrl = "https://waksim.github.io/MKttsBOT/"; // <-- ВАШ ПУТЬ НА GITHUB PAGES
-        const downloadUrl = `${baseUrl}downloader.html?data=${data}`;
+        const blob = new Blob([textValue], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
 
-        if (downloadUrl.length > 4096) { // Запас прочности
-             logToPage("URL too long even after compression.", "error");
-             tg.showAlert("The text is too long to be processed this way. Please shorten it.");
-             return;
-        }
+        document.body.appendChild(link);
+        link.click();
 
-        logToPage("Redirecting to browser for download...");
-        tg.openLink(downloadUrl);
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+
+        logToPage(`Download of "${filename}" initiated successfully.`, 'info');
     }
 
-    tg.MainButton.setText("Open Download Page");
-    tg.MainButton.onClick(prepareAndRedirectForDownload);
-    tg.MainButton.show();
+    textInput.addEventListener('input', saveState);
+
+    pasteBtn.addEventListener('click', () => {
+        navigator.clipboard.readText()
+            .then(text => {
+                textInput.value = text;
+                saveState();
+                logToPage("Text pasted from clipboard.");
+            })
+            .catch(err => {
+                logToPage(`Failed to read clipboard: ${err.message}`, 'error');
+                alert("Could not read from clipboard. Please use your device's paste function (e.g., Ctrl+V).");
+            });
+    });
+
+    clearBtn.addEventListener('click', () => {
+        textInput.value = '';
+        saveState();
+        logToPage("Text cleared.");
+    });
+
+    downloadBtn.addEventListener('click', downloadTxtFile);
+
+    undoBtn.addEventListener('click', () => {
+        if (historyIndex > 0) {
+            historyIndex--;
+            textInput.value = history[historyIndex];
+            updateAllButtonsState();
+        }
+    });
+
+    redoBtn.addEventListener('click', () => {
+        if (historyIndex < history.length - 1) {
+            historyIndex++;
+            textInput.value = history[historyIndex];
+            updateAllButtonsState();
+        }
+    });
 
     updateAllButtonsState();
 });
